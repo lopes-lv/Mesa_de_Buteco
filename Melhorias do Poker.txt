@@ -1,8 +1,0 @@
-Melhorias do Poker 
-
-
-Melhorar design
-Centralizar as cartas da mesa no centro dela 
-Final da rodada ta acabando mt rápido e não tem uma pergunta se quer continuar
-não tem um botão para sair 
-brilho em volta ou indicativo de quem é a vez
