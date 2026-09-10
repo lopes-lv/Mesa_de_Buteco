@@ -5,6 +5,7 @@ sem nenhuma imagem externa. As formas são deliberadamente blocadas
 lembrar jogos 8/16-bit.
 """
 import pygame
+import os
 
 # ---------- Paleta ----------
 COR_FUNDO = (14, 20, 24)
@@ -60,10 +61,154 @@ def desenhar_texto(tela, texto, x, y, tamanho=18, cor=COR_TEXTO, negrito=False, 
     tela.blit(superficie, rect)
     return rect
 
+class SpriteLoader:
+    def __init__(self, assets_path='assets/assets.png'):
+        self.sheet = pygame.image.load(assets_path).convert_alpha()
+        
+        self.naipes = {
+            'espadas': pygame.Rect(19, 23, 20, 23),
+            'paus': pygame.Rect(48, 21, 20, 21),
+            'copas': pygame.Rect(28, 57, 20, 19),
+            'ouros': pygame.Rect(54, 54, 18, 29)
+        }
+        
+        self.faces_vermelhas = {
+            'J': pygame.Rect(92, 20, 44, 36),
+            'Q': pygame.Rect(146, 7, 37, 64),
+            'K': pygame.Rect(194, 10, 41, 54)
+        }
+        
+        self.faces_pretas = {
+            'J': pygame.Rect(242, 20, 44, 36),
+            'Q': pygame.Rect(296, 7, 37, 64),
+            'K': pygame.Rect(344, 10, 41, 54)
+        }
+        
+        self.base_verso = pygame.Rect(15, 92, 58, 74)
+        self.base_frente = pygame.Rect(88, 91, 58, 74)
+        
+        self.textos_vermelhos = {
+            'A': pygame.Rect(173, 95, 14, 18),
+            '2': pygame.Rect(195, 96, 11, 16),
+            '3': pygame.Rect(216, 98, 13, 14),
+            '4': pygame.Rect(239, 97, 18, 16),
+            '5': pygame.Rect(268, 97, 14, 17),
+            '6': pygame.Rect(294, 98, 9, 15),
+            '7': pygame.Rect(313, 100, 11, 17),
+            '8': pygame.Rect(330, 100, 9, 18),
+            '9': pygame.Rect(346, 101, 9, 18),
+            '10': pygame.Rect(362, 103, 13, 12),
+            'J': pygame.Rect(393, 103, 15, 14),
+            'Q': pygame.Rect(411, 103, 15, 13),
+            'K': pygame.Rect(432, 104, 11, 14)
+        }
+        
+        self.textos_pretos = {
+            'A': pygame.Rect(169, 131, 14, 18),
+            '2': pygame.Rect(191, 132, 11, 16),
+            '3': pygame.Rect(212, 134, 13, 14),
+            '4': pygame.Rect(235, 133, 18, 16),
+            '5': pygame.Rect(264, 133, 14, 17),
+            '6': pygame.Rect(290, 134, 9, 15),
+            '7': pygame.Rect(309, 136, 11, 17),
+            '8': pygame.Rect(326, 136, 9, 18),
+            '9': pygame.Rect(342, 137, 9, 18),
+            '10': pygame.Rect(358, 139, 13, 12),
+            'J': pygame.Rect(389, 139, 15, 14),
+            'Q': pygame.Rect(407, 139, 15, 13),
+            'K': pygame.Rect(428, 140, 11, 14)
+        }
+        
+        self._cache = {}
+        self._cache_verso = None
+        self._gerar_cache()
+
+    def get_sprite(self, rect):
+        surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        surf.blit(self.sheet, (0, 0), rect)
+        return surf
+
+    def _gerar_cache(self):
+        self._cache_verso = self.get_sprite(self.base_verso)
+        
+        valores = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+        naipes_dict = {
+            'copas': ('vermelho', self.naipes['copas']),
+            'ouros': ('vermelho', self.naipes['ouros']),
+            'espadas': ('preto', self.naipes['espadas']),
+            'paus': ('preto', self.naipes['paus'])
+        }
+        
+        for valor in valores:
+            for nome_naipe, (cor, rect_naipe) in naipes_dict.items():
+                carta_surf = self.get_sprite(self.base_frente).copy()
+                
+                dict_textos = self.textos_vermelhos if cor == 'vermelho' else self.textos_pretos
+                surf_texto = self.get_sprite(dict_textos[valor])
+                
+                surf_naipe = self.get_sprite(rect_naipe)
+                surf_naipe_pequeno = pygame.transform.smoothscale(surf_naipe, (10, 10))
+                
+                # Canto superior esquerdo
+                carta_surf.blit(surf_texto, (3, 3))
+                carta_surf.blit(surf_naipe_pequeno, (3 + surf_texto.get_width()//2 - 5, 3 + surf_texto.get_height() + 1))
+                
+                # Canto inferior direito (rotacionado 180)
+                surf_texto_rot = pygame.transform.rotate(surf_texto, 180)
+                surf_naipe_pequeno_rot = pygame.transform.rotate(surf_naipe_pequeno, 180)
+                
+                cw, ch = carta_surf.get_size()
+                carta_surf.blit(surf_texto_rot, (cw - 3 - surf_texto_rot.get_width(), ch - 3 - surf_texto_rot.get_height()))
+                carta_surf.blit(surf_naipe_pequeno_rot, (cw - 3 - surf_texto_rot.get_width()//2 - 5, ch - 3 - surf_texto_rot.get_height() - 1 - 10))
+                
+                # Centro
+                if valor in ['J', 'Q', 'K']:
+                    faces = self.faces_vermelhas if cor == 'vermelho' else self.faces_pretas
+                    surf_face = self.get_sprite(faces[valor])
+                    fx = (cw - surf_face.get_width()) // 2
+                    fy = (ch - surf_face.get_height()) // 2
+                    carta_surf.blit(surf_face, (fx, fy))
+                else:
+                    nx = (cw - surf_naipe.get_width()) // 2
+                    ny = (ch - surf_naipe.get_height()) // 2
+                    carta_surf.blit(surf_naipe, (nx, ny))
+                
+                self._cache[f"{valor}_de_{nome_naipe}"] = carta_surf
+
+    def get_carta(self, valor, naipe):
+        key = f"{valor}_de_{naipe.lower()}"
+        return self._cache.get(key, self._cache_verso)
+        
+    def get_verso(self):
+        return self._cache_verso
+
+_sprite_loader = None
+
+def inicializar_sprites(assets_path='assets/assets.png'):
+    global _sprite_loader
+    if _sprite_loader is None and os.path.exists(assets_path):
+        _sprite_loader = SpriteLoader(assets_path)
 
 def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=False, destaque=False):
-    """Desenha uma carta estilo pixel art (blocos sólidos, sem gradiente)."""
+    """Desenha uma carta estilo pixel art. Usa sprites se disponíveis."""
     rect = pygame.Rect(x, y, largura, altura)
+    
+    global _sprite_loader
+    if _sprite_loader is not None:
+        if virada_para_baixo or carta is None:
+            imagem = _sprite_loader.get_verso()
+        else:
+            imagem = _sprite_loader.get_carta(carta.texto, carta.naipe)
+            
+        if imagem.get_width() != largura or imagem.get_height() != altura:
+            imagem = pygame.transform.scale(imagem, (largura, altura))
+            
+        tela.blit(imagem, (x, y))
+        
+        if destaque:
+            pygame.draw.rect(tela, (230, 200, 60), rect, 4)
+            
+        return rect
 
     if virada_para_baixo or carta is None:
         pygame.draw.rect(tela, COR_CARTA_VERSO, rect)

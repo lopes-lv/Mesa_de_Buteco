@@ -11,11 +11,12 @@ import pygame
 from game_logic import Table, Player
 from screens import MenuScreen, ConfigScreen
 from table_screen import TableScreen
+from ui_pixelart import inicializar_sprites
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
 
-NOMES_BOTS = ["Bot Ana", "Bot Bruno", "Bot Caio", "Bot Duda", "Bot Elis", "Bot Fabio"]
+NOMES_BOTS = ["Bot Ana", "Bot Bruno", "Bot Caio", "Bot Duda", "Bot Elis", "Bot Fabio", "Bot Gabi", "Bot Hugo"]
 
 
 class App:
@@ -23,6 +24,7 @@ class App:
         pygame.init()
         pygame.display.set_caption("Pixel Poker - Texas Hold'em Solo")
         self.tela = pygame.display.set_mode((LARGURA_INICIAL, ALTURA_INICIAL), pygame.RESIZABLE)
+        inicializar_sprites()
         self.clock = pygame.time.Clock()
         self.rodando = True
 

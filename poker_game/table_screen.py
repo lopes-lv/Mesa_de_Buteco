@@ -93,7 +93,8 @@ class TableScreen:
                 self._aplicar_acao_humano(acao, 0)
             elif self.botao_raise.collidepoint(evento.pos):
                 bb = self.table.blinds_atuais()[1]
-                self.valor_raise_atual = min(bb, max(1, humano.stack - max(0, a_pagar)))
+                min_raise = max(bb, self.table.rodada_atual.ultimo_raise_valor)
+                self.valor_raise_atual = min(min_raise, max(1, humano.stack - max(0, a_pagar)))
                 self.modo_raise = True
 
         elif evento.type == pygame.MOUSEBUTTONUP:
@@ -106,9 +107,15 @@ class TableScreen:
         humano = self._jogador(self.id_humano)
         a_pagar = max(0, self.table.rodada_atual.aposta_alvo - humano.aposta_rodada)
         maximo = max(1, humano.stack - a_pagar)
+        bb = self.table.blinds_atuais()[1]
+        min_raise = max(bb, self.table.rodada_atual.ultimo_raise_valor)
+        min_raise = min(min_raise, maximo)
+        
         proporcao = (mouse_x - self.slider_rect.x) / max(1, self.slider_rect.width)
         proporcao = min(1.0, max(0.0, proporcao))
-        self.valor_raise_atual = max(1, int(maximo * proporcao))
+        
+        valor_bruto = int(maximo * proporcao)
+        self.valor_raise_atual = max(min_raise, valor_bruto)
 
     def _aplicar_acao_humano(self, acao, valor_raise):
         humano = self._jogador(self.id_humano)
@@ -182,6 +189,7 @@ class TableScreen:
                     oponentes_ativos=len(rodada.jogadores_ativos_na_mao()) - 1,
                     posicao=self._posicao_relativa(jogador_da_vez),
                     jogadores_agiram=len(rodada.jogadores_que_agiram),
+                    ultimo_raise=rodada.ultimo_raise_valor
                 )
                 rodada.aplicar_acao(jogador_da_vez, acao, valor)
         else:
@@ -284,13 +292,29 @@ class TableScreen:
         desenhar_texto(tela, texto, marcador_x, marcador_y, tamanho=11,
                        cor=(20, 24, 30), negrito=True, centralizado=True)
 
-    def _posicoes_assentos(self, mesa_rect, largura, altura, n_jogadores):
-        """Retorna assentos visuais para os jogadores depois do dealer."""
+    def _posicoes_assentos(self, mesa_rect, n_jogadores):
+        """Retorna assentos visuais FIXOS para todos os n jogadores."""
         import math
-        angulos = [0, 90, 180, 225, 315, 135]
+        if n_jogadores == 2:
+            angulos = [90, 180]
+        elif n_jogadores == 3:
+            angulos = [90, 180, 0]
+        elif n_jogadores == 4:
+            # Em vez de usar 270 (topo), usamos 225 (diagonal superior esquerda)
+            # para deixar o centro livre para o Dealer.
+            angulos = [90, 180, 225, 0]
+        elif n_jogadores == 5:
+            angulos = [90, 150, 210, 330, 30]
+        elif n_jogadores == 6:
+            angulos = [90, 135, 180, 225, 315, 0]
+        elif n_jogadores == 7:
+            angulos = [90, 135, 180, 225, 315, 0, 45]
+        else: # 8 jogadores (7 bots)
+            angulos = [90, 125, 160, 195, 230, 310, 350, 30]
+            
         posicoes = []
-        for i in range(max(0, n_jogadores - 1)):
-            ang = math.radians(angulos[i % len(angulos)])
+        for i in range(n_jogadores):
+            ang = math.radians(angulos[i])
             rx = mesa_rect.width // 2 + 70
             ry = mesa_rect.height // 2 + 70
             x = mesa_rect.centerx + int(rx * math.cos(ang))
@@ -300,20 +324,15 @@ class TableScreen:
 
     def _desenhar_jogadores(self, tela, mesa_rect, largura, altura):
         n = len(self.table.jogadores)
-        posicoes = self._posicoes_assentos(mesa_rect, largura, altura, n)
+        posicoes = self._posicoes_assentos(mesa_rect, n)
         mostrar_cartas_bots = self.resultados_showdown is not None or self.mensagem_vencedor_por_fold is not None
         dealer_idx, small_blind_idx, big_blind_idx = self._indices_blinds()
-        indice_dealer_na_ordem = self.table.ordem_assentos.index(dealer_idx)
-        indices_jogadores = [
-            self.table.ordem_assentos[(indice_dealer_na_ordem + i) % n]
-            for i in range(1, n)
-        ]
 
         jogador_da_vez = None
         if not mostrar_cartas_bots and not self.app.jogo_finalizado:
             jogador_da_vez = self._jogador_da_vez_seguro()
 
-        for indice_jogador, (x, y) in zip(indices_jogadores, posicoes):
+        for indice_jogador, (x, y) in enumerate(posicoes):
             jogador = self.table.jogadores[indice_jogador]
             eh_humano = jogador.id == self.id_humano
             largura_carta, altura_carta = (60, 86) if eh_humano else (40, 58)
@@ -356,7 +375,7 @@ class TableScreen:
 
             x0 = x - total_largura // 2
             for i, carta in enumerate(jogador.mao):
-                virada = (not eh_humano) and (not mostrar_cartas_bots) and (not jogador.foldou or True) and not (eh_humano)
+                virada = (not eh_humano) and (not mostrar_cartas_bots)
                 mostrar_face = eh_humano or (mostrar_cartas_bots and not jogador.foldou)
                 desenhar_carta(
                     tela, x0 + i * (largura_carta + espaco_cartas), y - altura_carta // 2,

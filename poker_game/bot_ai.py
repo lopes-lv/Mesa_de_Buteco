@@ -43,7 +43,7 @@ def _forca_pos_flop(cartas_jogador, comunitarias):
 
 def decidir_acao_bot(
     jogador, estagio, comunitarias, aposta_alvo, big_blind,
-    pote=0, oponentes_ativos=2, posicao=0, jogadores_agiram=0,
+    pote=0, oponentes_ativos=2, posicao=0, jogadores_agiram=0, ultimo_raise=0
 ):
     """
     Retorna tupla (acao, valor_raise) onde acao em
@@ -72,7 +72,8 @@ def decidir_acao_bot(
     if score >= 67:
         if jogador.stack <= big_blind:
             return ("call", 0)
-        valor_raise = max(big_blind, int(max(aposta_alvo, big_blind) * 0.65))
+        min_raise = max(big_blind, ultimo_raise)
+        valor_raise = max(min_raise, int(max(aposta_alvo, big_blind) * 0.65))
         valor_raise = min(valor_raise, jogador.stack - max(0, a_pagar))
         if valor_raise <= 0:
             return ("call", 0)

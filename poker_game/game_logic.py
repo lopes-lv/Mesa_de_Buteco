@@ -52,8 +52,9 @@ class Player:
 class BettingRound:
     """Controla uma única rodada de apostas (pre-flop, flop, turn ou river)."""
 
-    def __init__(self, jogadores, indice_inicial, aposta_minima):
+    def __init__(self, jogadores, ordem_assentos, indice_inicial, aposta_minima):
         self.jogadores = jogadores
+        self.ordem_assentos = ordem_assentos
         self.indice_atual = indice_inicial
         self.aposta_alvo = aposta_minima  # maior aposta atual na mesa
         self.ultimo_raise_valor = aposta_minima
@@ -69,12 +70,13 @@ class BettingRound:
         tentativas = 0
         n = len(self.jogadores)
         while tentativas < n and not self.jogadores[self.indice_atual].pode_agir():
-            self.indice_atual = (self.indice_atual + 1) % n
+            self._avancar_indice()
             tentativas += 1
 
     def _avancar_indice(self):
-        n = len(self.jogadores)
-        self.indice_atual = (self.indice_atual + 1) % n
+        posicao = self.ordem_assentos.index(self.indice_atual)
+        n = len(self.ordem_assentos)
+        self.indice_atual = self.ordem_assentos[(posicao + 1) % n]
 
     def aplicar_acao(self, jogador, acao, valor_raise=0):
         """acao em {'fold', 'check', 'call', 'raise'}"""
@@ -162,10 +164,8 @@ class Table:
 
     @staticmethod
     def _criar_ordem_assentos(n):
-        """Ordem horaria: dealer no topo, direita, baixo e esquerda."""
-        if n == 4:
-            return [3, 2, 0, 1]
-        return list(range(n - 1, -1, -1))
+        """Ordem horaria de assentos fixos."""
+        return list(range(n))
 
     # ---------- Blinds (estrutura de torneio) ----------
     def blinds_atuais(self):
@@ -210,7 +210,7 @@ class Table:
             j.mao = self.deck.comprar(2)
 
         idx_primeiro_a_agir = self._proximo_ativo(idx_bb)
-        self.rodada_atual = BettingRound(self.jogadores, idx_primeiro_a_agir, aposta_minima=bb)
+        self.rodada_atual = BettingRound(self.jogadores, self.ordem_assentos, idx_primeiro_a_agir, aposta_minima=bb)
 
     def _proximo_ativo(self, indice):
         posicao = self.ordem_assentos.index(indice)
@@ -245,7 +245,7 @@ class Table:
             return
 
         idx_inicial = self._proximo_ativo(self.dealer_idx)
-        self.rodada_atual = BettingRound(self.jogadores, idx_inicial, aposta_minima=0)
+        self.rodada_atual = BettingRound(self.jogadores, self.ordem_assentos, idx_inicial, aposta_minima=0)
 
     def mao_finalizada_por_fold(self):
         ativos = [j for j in self.jogadores if not j.foldou and not j.eliminado]
@@ -282,10 +282,20 @@ class Table:
             if not sub_avaliacoes:
                 continue
             vencedores_ids = determinar_vencedores(sub_avaliacoes)
-            divisao = pote["valor"] // len(vencedores_ids)
-            resto = pote["valor"] % len(vencedores_ids)
+            
+            ordem_a_partir_sb = []
+            idx = self.dealer_idx
+            n_assentos = len(self.ordem_assentos)
+            for offset in range(1, n_assentos + 1):
+                pos = (self.ordem_assentos.index(idx) + offset) % n_assentos
+                ordem_a_partir_sb.append(self.ordem_assentos[pos])
+            
+            vencedores_ordenados = sorted(vencedores_ids, key=lambda pid: ordem_a_partir_sb.index(pid))
+            
+            divisao = pote["valor"] // len(vencedores_ordenados)
+            resto = pote["valor"] % len(vencedores_ordenados)
             nomes_vencedores = []
-            for i, pid in enumerate(vencedores_ids):
+            for i, pid in enumerate(vencedores_ordenados):
                 jogador = next(j for j in self.jogadores if j.id == pid)
                 ganho = divisao + (1 if i < resto else 0)  # distribui o resto (arredondamento)
                 jogador.stack += ganho

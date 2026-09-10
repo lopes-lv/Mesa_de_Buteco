@@ -54,7 +54,7 @@ class ConfigScreen:
         self.app = app
         self.quantidade_bots = 3
         self.min_bots = 1
-        self.max_bots = 5
+        self.max_bots = 7
         self.botao_menos = pygame.Rect(0, 0, 50, 50)
         self.botao_mais = pygame.Rect(0, 0, 50, 50)
         self.botao_iniciar = pygame.Rect(0, 0, 280, 60)
