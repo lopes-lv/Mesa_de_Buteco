@@ -15,8 +15,6 @@ from ui_pixelart import (
 from bot_ai import decidir_acao_bot
 
 DELAY_BOT_SEGUNDOS = 0.9
-DELAY_SHOWDOWN_SEGUNDOS = 3.5
-DELAY_FOLD_VITORIA_SEGUNDOS = 1.6
 
 
 class TableScreen:
@@ -32,15 +30,16 @@ class TableScreen:
         self.botao_cancelar_raise = pygame.Rect(0, 0, 120, 46)
         self.slider_rect = pygame.Rect(0, 0, 320, 14)
         self.slider_alca = pygame.Rect(0, 0, 20, 30)
+        self.botao_continuar = pygame.Rect(0, 0, 240, 54)
+        self.botao_sair = pygame.Rect(0, 0, 110, 40)
 
         self.modo_raise = False
         self.arrastando_slider = False
         self.valor_raise_atual = 0
 
         self.timer_bot = 0.0
-        self.timer_pos_mao = 0.0
+        self.tempo_decorrido = 0.0  # usado para o brilho pulsante de "vez do jogador"
         self.resultados_showdown = None
-        self.aguardando_proxima_mao = False
         self.mensagem_vencedor_por_fold = None
 
         self.table.iniciar_nova_mao()
@@ -52,11 +51,23 @@ class TableScreen:
                 self.app.ir_para_menu()
             return
 
+        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+            if self.botao_sair.collidepoint(evento.pos):
+                self.app.ir_para_menu()
+                return
+
+        # Resultado da mão (showdown ou vitória por fold): só avança quando
+        # o jogador clicar em "Continuar" - nada acontece automaticamente.
+        if self.resultados_showdown is not None or self.mensagem_vencedor_por_fold is not None:
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                if self.botao_continuar.collidepoint(evento.pos):
+                    self._comecar_proxima_mao_ou_finalizar()
+            return
+
         jogador_da_vez = self._jogador_da_vez_seguro()
         eh_vez_do_humano = (
             jogador_da_vez is not None
             and jogador_da_vez.id == self.id_humano
-            and self.resultados_showdown is None
         )
 
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
@@ -106,6 +117,21 @@ class TableScreen:
     def _jogador(self, id_jogador):
         return next(j for j in self.table.jogadores if j.id == id_jogador)
 
+    def _posicao_relativa(self, jogador):
+        """Retorna quantos jogadores ativos agem depois deste bot."""
+        ativos = [
+            self.table.jogadores[i]
+            for i in self.table.ordem_assentos
+            if not self.table.jogadores[i].eliminado
+        ]
+        if not ativos:
+            return 0
+        indice = ativos.index(jogador)
+        indice_dealer = next(
+            (i for i, j in enumerate(ativos) if j.id == self._id_dealer()), 0
+        )
+        return (indice - indice_dealer - 1) % len(ativos)
+
     def _jogador_da_vez_seguro(self):
         if self.table.rodada_atual is None:
             return None
@@ -113,19 +139,14 @@ class TableScreen:
 
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
+        self.tempo_decorrido += dt
+
         if self.app.jogo_finalizado:
             return
 
-        if self.resultados_showdown is not None:
-            self.timer_pos_mao += dt
-            if self.timer_pos_mao >= DELAY_SHOWDOWN_SEGUNDOS:
-                self._comecar_proxima_mao_ou_finalizar()
-            return
-
-        if self.mensagem_vencedor_por_fold is not None:
-            self.timer_pos_mao += dt
-            if self.timer_pos_mao >= DELAY_FOLD_VITORIA_SEGUNDOS:
-                self._comecar_proxima_mao_ou_finalizar()
+        # Enquanto o resultado da mão estiver na tela, aguarda o clique em
+        # "Continuar" (ver tratar_evento) em vez de avançar sozinho.
+        if self.resultados_showdown is not None or self.mensagem_vencedor_por_fold is not None:
             return
 
         rodada = self.table.rodada_atual
@@ -136,7 +157,6 @@ class TableScreen:
             resultados = self.table.processar_showdown()
             self.table.marcar_eliminados()
             self.mensagem_vencedor_por_fold = resultados
-            self.timer_pos_mao = 0.0
             return
 
         if rodada.rodada_terminou():
@@ -144,7 +164,6 @@ class TableScreen:
             if self.table.estagio == "showdown":
                 self.resultados_showdown = self.table.processar_showdown()
                 self.table.marcar_eliminados()
-                self.timer_pos_mao = 0.0
             return
 
         jogador_da_vez = rodada.jogador_da_vez()
@@ -158,7 +177,11 @@ class TableScreen:
                 sb, bb = self.table.blinds_atuais()
                 acao, valor = decidir_acao_bot(
                     jogador_da_vez, self.table.estagio, self.table.comunitarias,
-                    rodada.aposta_alvo, bb
+                    rodada.aposta_alvo, bb,
+                    pote=sum(j.total_apostado_mao for j in self.table.jogadores),
+                    oponentes_ativos=len(rodada.jogadores_ativos_na_mao()) - 1,
+                    posicao=self._posicao_relativa(jogador_da_vez),
+                    jogadores_agiram=len(rodada.jogadores_que_agiram),
                 )
                 rodada.aplicar_acao(jogador_da_vez, acao, valor)
         else:
@@ -185,11 +208,14 @@ class TableScreen:
         self._desenhar_topo(tela, largura)
         self._desenhar_comunitarias(tela, mesa_rect)
         self._desenhar_pote(tela, mesa_rect)
+        self._desenhar_marcador_dealer(tela, mesa_rect)
         self._desenhar_jogadores(tela, mesa_rect, largura, altura)
 
         if self.app.jogo_finalizado:
             self._desenhar_tela_final(tela, largura, altura)
             return
+
+        self._desenhar_botao_sair(tela)
 
         if self.resultados_showdown is not None:
             self._desenhar_resultado(tela, largura, altura, self.resultados_showdown)
@@ -203,31 +229,68 @@ class TableScreen:
         desenhar_texto(tela, f"Mão #{self.table.mao_numero}   Blinds: {sb}/{bb}",
                         largura // 2, 24, tamanho=18, cor=(220, 220, 220), centralizado=True)
 
+    def _desenhar_botao_sair(self, tela):
+        self.botao_sair.topleft = (20, 20)
+        mouse_pos = pygame.mouse.get_pos()
+        desenhar_botao(tela, self.botao_sair, "Sair", hover=self.botao_sair.collidepoint(mouse_pos), tamanho_fonte=15)
+
     def _desenhar_comunitarias(self, tela, mesa_rect):
         n = len(self.table.comunitarias)
         largura_carta, altura_carta = 56, 80
         espaco = 10
-        total_largura = n * largura_carta + max(0, n - 1) * espaco
+        # largura sempre calculada para as 5 cartas finais, para o grupo
+        # ficar perfeitamente centralizado na mesa e não "pular" de lugar
+        # conforme as cartas do flop/turn/river vão sendo reveladas.
+        total_largura = 5 * largura_carta + 4 * espaco
         x0 = mesa_rect.centerx - total_largura // 2
         y0 = mesa_rect.centery - altura_carta // 2 - 20
-        for i, carta in enumerate(self.table.comunitarias):
-            desenhar_carta(tela, x0 + i * (largura_carta + espaco), y0, largura_carta, altura_carta, carta)
-        # espaços vazios para as cartas que ainda vão sair
-        for i in range(n, 5):
-            x = x0 + i * (largura_carta + espaco) if n > 0 else mesa_rect.centerx - total_largura // 2 + i * (largura_carta + espaco)
-            pygame.draw.rect(tela, (18, 70, 44), (x, y0, largura_carta, altura_carta), 2, border_radius=2)
+        for i in range(5):
+            x = x0 + i * (largura_carta + espaco)
+            if i < n:
+                desenhar_carta(tela, x, y0, largura_carta, altura_carta, self.table.comunitarias[i])
+            else:
+                pygame.draw.rect(tela, (18, 70, 44), (x, y0, largura_carta, altura_carta), 2, border_radius=2)
 
     def _desenhar_pote(self, tela, mesa_rect):
         pote = sum(j.total_apostado_mao for j in self.table.jogadores)
         desenhar_texto(tela, f"POTE: {pote}", mesa_rect.centerx, mesa_rect.centery + 50,
                         tamanho=20, cor=(230, 200, 60), negrito=True, centralizado=True)
 
+    def _indices_blinds(self):
+        dealer_idx = self.table.dealer_idx
+        small_blind_idx = self.table._proximo_ativo(dealer_idx)
+        big_blind_idx = self.table._proximo_ativo(small_blind_idx)
+        return dealer_idx, small_blind_idx, big_blind_idx
+
+    def _desenhar_marcador_dealer(self, tela, mesa_rect):
+        x = mesa_rect.centerx
+        y = mesa_rect.top + 38
+        pygame.draw.circle(tela, (230, 200, 60), (x, y), 24)
+        pygame.draw.circle(tela, (30, 30, 24), (x, y), 24, 3)
+        desenhar_texto(tela, "D", x, y - 1, tamanho=22, cor=(30, 30, 24),
+                       negrito=True, centralizado=True)
+        desenhar_texto(tela, "DEALER", x, y + 34, tamanho=11,
+                       cor=(230, 200, 60), negrito=True, centralizado=True)
+
+    def _desenhar_marcador_assento(self, tela, mesa_rect, x, y, texto, cor):
+        raio = 15 if len(texto) == 1 else 19
+        distancia_x = x - mesa_rect.centerx
+        distancia_y = y - mesa_rect.centery
+        distancia = max(1, (distancia_x ** 2 + distancia_y ** 2) ** 0.5)
+        marcador_x = x - int(distancia_x / distancia * 52)
+        marcador_y = y - int(distancia_y / distancia * 52)
+        pygame.draw.circle(tela, cor, (marcador_x, marcador_y), raio)
+        pygame.draw.circle(tela, (20, 24, 30), (marcador_x, marcador_y), raio, 2)
+        desenhar_texto(tela, texto, marcador_x, marcador_y, tamanho=11,
+                       cor=(20, 24, 30), negrito=True, centralizado=True)
+
     def _posicoes_assentos(self, mesa_rect, largura, altura, n_jogadores):
-        """Distribui jogadores ao redor da mesa (elipse)."""
+        """Retorna assentos visuais para os jogadores depois do dealer."""
         import math
+        angulos = [0, 90, 180, 225, 315, 135]
         posicoes = []
-        for i in range(n_jogadores):
-            ang = math.pi / 2 + (2 * math.pi * i / n_jogadores)  # jogador humano embaixo
+        for i in range(max(0, n_jogadores - 1)):
+            ang = math.radians(angulos[i % len(angulos)])
             rx = mesa_rect.width // 2 + 70
             ry = mesa_rect.height // 2 + 70
             x = mesa_rect.centerx + int(rx * math.cos(ang))
@@ -239,12 +302,34 @@ class TableScreen:
         n = len(self.table.jogadores)
         posicoes = self._posicoes_assentos(mesa_rect, largura, altura, n)
         mostrar_cartas_bots = self.resultados_showdown is not None or self.mensagem_vencedor_por_fold is not None
+        dealer_idx, small_blind_idx, big_blind_idx = self._indices_blinds()
+        indice_dealer_na_ordem = self.table.ordem_assentos.index(dealer_idx)
+        indices_jogadores = [
+            self.table.ordem_assentos[(indice_dealer_na_ordem + i) % n]
+            for i in range(1, n)
+        ]
 
-        for jogador, (x, y) in zip(self.table.jogadores, posicoes):
+        jogador_da_vez = None
+        if not mostrar_cartas_bots and not self.app.jogo_finalizado:
+            jogador_da_vez = self._jogador_da_vez_seguro()
+
+        for indice_jogador, (x, y) in zip(indices_jogadores, posicoes):
+            jogador = self.table.jogadores[indice_jogador]
             eh_humano = jogador.id == self.id_humano
             largura_carta, altura_carta = (60, 86) if eh_humano else (40, 58)
+            eh_vez_dele = jogador_da_vez is not None and jogador.id == jogador_da_vez.id
 
-            cor_nome = (230, 200, 60) if jogador.id == self._id_dealer() else COR_TEXTO
+            if indice_jogador == small_blind_idx:
+                self._desenhar_marcador_assento(tela, mesa_rect, x, y, "SB", (80, 180, 240))
+            elif indice_jogador == big_blind_idx:
+                self._desenhar_marcador_assento(tela, mesa_rect, x, y, "BB", (240, 130, 80))
+
+            if eh_vez_dele:
+                self._desenhar_brilho_de_vez(tela, x, y, largura_carta, altura_carta)
+
+            cor_nome = COR_TEXTO
+            if eh_vez_dele:
+                cor_nome = (120, 240, 140)
             status = ""
             if jogador.eliminado:
                 status = " (fora)"
@@ -253,15 +338,22 @@ class TableScreen:
             elif jogador.all_in:
                 status = " (all-in)"
 
-            desenhar_texto(tela, f"{jogador.nome}{status}", x, y - altura_carta - 22,
-                            tamanho=14, cor=cor_nome, centralizado=True, negrito=eh_humano)
-            desenhar_pilha_fichas(tela, x - 30, y - altura_carta - 4, jogador.stack, raio=7)
+            espaco_cartas = 4
+            total_largura = 2 * largura_carta + espaco_cartas
+            if eh_humano:
+                painel_x = x - total_largura // 2 - 118
+                desenhar_texto(tela, f"{jogador.nome}{status}", painel_x, y - 28,
+                               tamanho=14, cor=cor_nome, centralizado=True,
+                               negrito=True)
+                desenhar_pilha_fichas(tela, painel_x - 30, y + 2, jogador.stack, raio=7)
+            else:
+                desenhar_texto(tela, f"{jogador.nome}{status}", x, y - altura_carta - 22,
+                               tamanho=14, cor=cor_nome, centralizado=True, negrito=eh_vez_dele)
+                desenhar_pilha_fichas(tela, x - 30, y - altura_carta - 4, jogador.stack, raio=7)
 
             if jogador.eliminado:
                 continue
 
-            espaco_cartas = 4
-            total_largura = 2 * largura_carta + espaco_cartas
             x0 = x - total_largura // 2
             for i, carta in enumerate(jogador.mao):
                 virada = (not eh_humano) and (not mostrar_cartas_bots) and (not jogador.foldou or True) and not (eh_humano)
@@ -280,9 +372,22 @@ class TableScreen:
     def _id_dealer(self):
         return self.table.jogadores[self.table.dealer_idx].id
 
+    def _desenhar_brilho_de_vez(self, tela, x, y, largura_carta, altura_carta):
+        """Anel pulsante ao redor do assento de quem está com a vez de agir."""
+        import math
+        pulso = (math.sin(self.tempo_decorrido * 4.0) + 1) / 2  # 0..1
+        raio_x = largura_carta + 34 + int(pulso * 6)
+        raio_y = altura_carta // 2 + 34 + int(pulso * 6)
+        alpha = 110 + int(pulso * 90)
+
+        superficie = pygame.Surface((raio_x * 2, raio_y * 2), pygame.SRCALPHA)
+        cor = (120, 240, 140, alpha)
+        pygame.draw.ellipse(superficie, cor, (0, 0, raio_x * 2, raio_y * 2), width=5)
+        tela.blit(superficie, (x - raio_x, y - raio_y))
+
     def _desenhar_resultado(self, tela, largura, altura, resultados):
-        painel = pygame.Rect(0, 0, 480, 60 + 30 * len(resultados))
-        painel.center = (largura // 2, altura - 130)
+        painel = pygame.Rect(0, 0, 480, 100 + 30 * len(resultados))
+        painel.center = (largura // 2, altura - 150)
         desenhar_painel(tela, painel, cor=(20, 24, 30))
         desenhar_texto(tela, "RESULTADO DA MÃO", painel.centerx, painel.y + 20,
                         tamanho=16, cor=(230, 200, 60), centralizado=True, negrito=True)
@@ -290,6 +395,11 @@ class TableScreen:
             texto = f"{', '.join(r['vencedores'])} venceu {r['pote']} ({r['categoria']})"
             desenhar_texto(tela, texto, painel.centerx, painel.y + 46 + i * 26,
                             tamanho=14, cor=COR_TEXTO, centralizado=True)
+
+        self.botao_continuar.center = (painel.centerx, painel.bottom - 34)
+        mouse_pos = pygame.mouse.get_pos()
+        desenhar_botao(tela, self.botao_continuar, "Continuar",
+                        hover=self.botao_continuar.collidepoint(mouse_pos), tamanho_fonte=18)
 
     def _desenhar_tela_final(self, tela, largura, altura):
         overlay = pygame.Surface((largura, altura))

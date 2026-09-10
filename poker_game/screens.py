@@ -14,11 +14,14 @@ class MenuScreen:
     def __init__(self, app):
         self.app = app
         self.botao_rect = pygame.Rect(0, 0, 360, 64)
+        self.botao_sair = pygame.Rect(0, 0, 160, 46)
 
     def tratar_evento(self, evento):
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_rect.collidepoint(evento.pos):
                 self.app.ir_para_config()
+            elif self.botao_sair.collidepoint(evento.pos):
+                self.app.encerrar()
 
     def atualizar(self, dt):
         pass
@@ -35,6 +38,10 @@ class MenuScreen:
         mouse_pos = pygame.mouse.get_pos()
         hover = self.botao_rect.collidepoint(mouse_pos)
         desenhar_botao(tela, self.botao_rect, "Texas Hold'em Solo", hover=hover, tamanho_fonte=22)
+
+        self.botao_sair.center = (largura // 2, self.botao_rect.bottom + 60)
+        hover_sair = self.botao_sair.collidepoint(mouse_pos)
+        desenhar_botao(tela, self.botao_sair, "Sair", hover=hover_sair, tamanho_fonte=18)
 
         desenhar_texto(tela, "Solo vs Bots  |  Redimensione a janela livremente",
                         largura // 2, altura - 40, tamanho=14, cor=(150, 150, 150), centralizado=True)

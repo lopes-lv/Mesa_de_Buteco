@@ -39,6 +39,9 @@ class App:
     def ir_para_config(self):
         self.tela_atual = ConfigScreen(self)
 
+    def encerrar(self):
+        self.rodando = False
+
     def iniciar_partida(self, quantidade_bots):
         jogadores = [Player(id_jogador=0, nome="Você", is_bot=False)]
         for i in range(quantidade_bots):

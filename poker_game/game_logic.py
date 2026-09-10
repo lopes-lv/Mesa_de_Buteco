@@ -149,7 +149,8 @@ def calcular_potes(jogadores):
 class Table:
     def __init__(self, jogadores):
         self.jogadores = jogadores  # lista de Player, ordem de assento fixa
-        self.dealer_idx = 0
+        self.ordem_assentos = self._criar_ordem_assentos(len(jogadores))
+        self.dealer_idx = self.ordem_assentos[-1]
         self.deck = None
         self.comunitarias = []
         self.pote_total = 0
@@ -158,6 +159,13 @@ class Table:
         self.nivel_blind_idx = 0
         self.rodada_atual = None
         self.log = []
+
+    @staticmethod
+    def _criar_ordem_assentos(n):
+        """Ordem horaria: dealer no topo, direita, baixo e esquerda."""
+        if n == 4:
+            return [3, 2, 0, 1]
+        return list(range(n - 1, -1, -1))
 
     # ---------- Blinds (estrutura de torneio) ----------
     def blinds_atuais(self):
@@ -186,12 +194,8 @@ class Table:
         if len(ativos) <= 1:
             return  # jogo acabou
 
-        # avança dealer para o próximo jogador não eliminado
-        n = len(self.jogadores)
-        for _ in range(n):
-            self.dealer_idx = (self.dealer_idx + 1) % n
-            if not self.jogadores[self.dealer_idx].eliminado:
-                break
+        # avança dealer seguindo a ordem visual dos assentos
+        self.dealer_idx = self._proximo_ativo(self.dealer_idx)
 
         sb, bb = self.blinds_atuais()
         idx_sb = self._proximo_ativo(self.dealer_idx)
@@ -209,10 +213,10 @@ class Table:
         self.rodada_atual = BettingRound(self.jogadores, idx_primeiro_a_agir, aposta_minima=bb)
 
     def _proximo_ativo(self, indice):
-        n = len(self.jogadores)
-        i = indice
-        for _ in range(n):
-            i = (i + 1) % n
+        posicao = self.ordem_assentos.index(indice)
+        n = len(self.ordem_assentos)
+        for deslocamento in range(1, n + 1):
+            i = self.ordem_assentos[(posicao + deslocamento) % n]
             if not self.jogadores[i].eliminado:
                 return i
         return indice
