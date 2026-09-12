@@ -1,7 +1,8 @@
 """
-main.py - Ponto de entrada do jogo Pixel Poker (Texas Hold'em Solo vs Bots).
+main.py - Ponto de entrada do jogo Texas Hold'em Solo vs Bots.
 
-Janela redimensionável, sem imagens externas (tudo desenhado via pygame.draw).
+Janela redimensionável, sem imagens externas (tudo desenhado via pygame.draw,
+estética "Neobrutalismo Suave / Dashboard Analítico" - ver ui_theme.py).
 Execute com: python main.py
 Compile com PyInstaller (ver README.md) para gerar o .exe no Windows.
 """
@@ -11,7 +12,6 @@ import pygame
 from game_logic import Table, Player
 from screens import MenuScreen, ConfigScreen
 from table_screen import TableScreen
-from ui_pixelart import inicializar_sprites
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
@@ -22,9 +22,8 @@ NOMES_BOTS = ["Bot Ana", "Bot Bruno", "Bot Caio", "Bot Duda", "Bot Elis", "Bot F
 class App:
     def __init__(self):
         pygame.init()
-        pygame.display.set_caption("Pixel Poker - Texas Hold'em Solo")
+        pygame.display.set_caption("Texas Hold'em Solo")
         self.tela = pygame.display.set_mode((LARGURA_INICIAL, ALTURA_INICIAL), pygame.RESIZABLE)
-        inicializar_sprites()
         self.clock = pygame.time.Clock()
         self.rodando = True
 

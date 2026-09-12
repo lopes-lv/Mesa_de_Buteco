@@ -183,6 +183,15 @@ class SpriteLoader:
         return self._cache_verso
 
 _sprite_loader = None
+_estilo_baralho = "sprites"
+
+def set_estilo_baralho(estilo):
+    global _estilo_baralho
+    _estilo_baralho = estilo
+
+def get_estilo_baralho():
+    global _estilo_baralho
+    return _estilo_baralho
 
 def inicializar_sprites(assets_path='assets/assets.png'):
     global _sprite_loader
@@ -193,8 +202,8 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
     """Desenha uma carta estilo pixel art. Usa sprites se disponíveis."""
     rect = pygame.Rect(x, y, largura, altura)
     
-    global _sprite_loader
-    if _sprite_loader is not None:
+    global _sprite_loader, _estilo_baralho
+    if _estilo_baralho == "sprites" and _sprite_loader is not None:
         if virada_para_baixo or carta is None:
             imagem = _sprite_loader.get_verso()
         else:
@@ -210,38 +219,54 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
             
         return rect
 
+    # Procedural drawing
+    cor_fundo = COR_CARTA_FUNDO
+    cor_borda = COR_CARTA_BORDA
+    cor_verso = COR_CARTA_VERSO
+    cor_verso_detalhe = COR_CARTA_VERSO_DETALHE
+    
+    if _estilo_baralho == "dark":
+        cor_fundo = (45, 45, 50)
+        cor_borda = (15, 15, 18)
+        cor_verso = (30, 30, 35)
+        cor_verso_detalhe = (50, 50, 55)
+
     if virada_para_baixo or carta is None:
-        pygame.draw.rect(tela, COR_CARTA_VERSO, rect)
-        pygame.draw.rect(tela, COR_CARTA_BORDA, rect, 3)
+        pygame.draw.rect(tela, cor_verso, rect)
+        pygame.draw.rect(tela, cor_borda, rect, 3)
         # padrão "xadrez" pixelado no verso
         bloco = max(4, largura // 6)
         for i in range(0, largura, bloco * 2):
             for j in range(0, altura, bloco * 2):
                 pygame.draw.rect(
-                    tela, COR_CARTA_VERSO_DETALHE,
+                    tela, cor_verso_detalhe,
                     (x + i, y + j, bloco, bloco)
                 )
         return rect
 
-    cor_fundo = COR_CARTA_FUNDO
     borda = 4 if destaque else 3
-    cor_borda = (230, 200, 60) if destaque else COR_CARTA_BORDA
+    cor_borda_ativa = (230, 200, 60) if destaque else cor_borda
     pygame.draw.rect(tela, cor_fundo, rect)
-    pygame.draw.rect(tela, cor_borda, rect, borda)
+    pygame.draw.rect(tela, cor_borda_ativa, rect, borda)
 
     tam_fonte = max(14, largura // 3)
     cor_naipe = carta.cor
+    
+    # Adaptar cor dos naipes pretos para o dark mode
+    if _estilo_baralho == "dark" and cor_naipe == (25, 25, 25):
+        cor_naipe = (220, 220, 220)
+
     desenhar_texto(tela, carta.texto, x + 6, y + 4, tamanho=tam_fonte, cor=cor_naipe, negrito=True)
     desenhar_texto(
         tela, carta.texto, x + largura - 6, y + altura - tam_fonte - 4,
         tamanho=tam_fonte, cor=cor_naipe, negrito=True
     )
-    _desenhar_naipe_simbolo(tela, carta, x + largura // 2, y + altura // 2, max(10, largura // 4))
+    _desenhar_naipe_simbolo(tela, carta, x + largura // 2, y + altura // 2, max(10, largura // 4), cor_naipe=cor_naipe)
     return rect
 
 
-def _desenhar_naipe_simbolo(tela, carta, cx, cy, tamanho):
-    cor = carta.cor
+def _desenhar_naipe_simbolo(tela, carta, cx, cy, tamanho, cor_naipe=None):
+    cor = cor_naipe if cor_naipe else carta.cor
     s = carta.simbolo_naipe
     if s == "H":  # copas: dois círculos + triângulo (blocado)
         r = tamanho // 3

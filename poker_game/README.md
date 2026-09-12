@@ -1,7 +1,8 @@
-# Pixel Poker - Texas Hold'em Solo vs Bots
+# Texas Hold'em Solo vs Bots
 
 Jogo de Texas Hold'em (Solo vs Bots) em Python + Pygame, com estética
-"pixel art" desenhada 100% via `pygame.draw` (sem imagens externas).
+"Neobrutalismo Suave / Dashboard Analítico" (ver `design/01_neobrutalismo_suave/`)
+desenhada 100% via `pygame.draw` (sem imagens externas).
 
 ## Estrutura do projeto
 
@@ -9,12 +10,16 @@ Jogo de Texas Hold'em (Solo vs Bots) em Python + Pygame, com estética
 poker_game/
 ├── main.py             # Ponto de entrada, loop principal e state machine
 ├── screens.py          # Tela de Menu Inicial e Configuração
-├── table_screen.py      # Tela de Mesa (gameplay completo)
+├── table_screen.py      # Tela de Mesa (gameplay completo + histórico de ações)
 ├── game_logic.py        # Player, BettingRound, Table, blinds, pote/side-pots
 ├── hand_evaluator.py     # Avaliação de mãos (7 cartas -> melhor 5, ranking)
 ├── bot_ai.py             # IA dos bots (perfis, pot odds e blefe)
 ├── deck.py               # Cartas e baralho
-└── ui_pixelart.py        # Todas as funções de desenho pixel art
+├── ui_theme.py            # Biblioteca de desenho neobrutalista (ativa)
+├── ui_pixelart.py         # Estética pixel art anterior (não usada mais; mantida
+│                          # de referência para uma eventual reintrodução como
+│                          # baralho alternativo, ver GDD.md seção 3.2)
+└── design/                # Guias técnicos e mockups HTML dos estilos visuais
 ```
 
 ## Como executar (desenvolvimento)

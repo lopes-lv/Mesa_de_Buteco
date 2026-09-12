@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Poker Master — Estilo 5: Cozy Flat / Indie Boardgame</title>
+<!-- mockup -->
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FDF3E2;
+    --panel: #FFFDF8;
+    --wood: #E8A45C;
+    --wood-dark: #C97F3D;
+    --ink: #5C4433;
+    --text: #4A3728;
+    --text-muted: #9C8770;
+    --terracotta: #E4674B;
+    --sage: #7FB685;
+    --mustard: #F3C64B;
+    --dusty-blue: #6FA8D6;
+    --lavender: #B79FD1;
+    --red-suit: #E1594B;
+    --locked: #E6DCC8;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{
+    height:100%;
+    background:#EADFC8;
+    font-family:'Nunito', sans-serif;
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .app-frame{
+    position:relative;
+    width: min(100vw, 177.78vh);
+    height: min(100vh, 56.25vw);
+    background: var(--bg);
+    overflow:hidden;
+    box-shadow: 0 0 0 2px var(--ink), 0 30px 60px rgba(74,55,40,0.35);
+    border-radius: 18px;
+  }
+  .screen{ position:absolute; inset:0; display:none; flex-direction:column; }
+  .screen.active{ display:flex; }
+
+  .dev-toggle{
+    position:absolute; top:16px; right:16px; z-index:50;
+    display:flex; background: var(--ink); border-radius:999px; padding:4px; gap:4px;
+    box-shadow: 0 4px 10px rgba(74,55,40,0.3);
+  }
+  .dev-toggle button{
+    font-family:'Nunito', sans-serif; font-weight:700; font-size:13px;
+    border:none; background:transparent; color:#FDF3E2;
+    padding:8px 16px; border-radius:999px; cursor:pointer; transition:all .15s ease;
+  }
+  .dev-toggle button.active-toggle{ background: var(--mustard); color: var(--text); }
+
+  /* -------- Primitives -------- */
+  .cozy-panel{
+    background: var(--panel);
+    border: 3px solid var(--ink);
+    border-radius: 28px;
+    box-shadow: 0 10px 0 rgba(74,55,40,0.08), 0 16px 30px rgba(74,55,40,0.12);
+  }
+  .kbd{
+    display:inline-flex; align-items:center; justify-content:center;
+    font-family:'Nunito', sans-serif; font-weight:800; font-size:12px;
+    color: #FDF3E2; background: var(--ink);
+    border-radius:999px; padding:4px 10px; letter-spacing:0.3px;
+  }
+
+  /* =========================== MENU =========================== */
+  .menu-screen{
+    align-items:center; justify-content:center; gap:40px; padding:48px;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(243,198,75,0.35), transparent 40%),
+      radial-gradient(circle at 88% 78%, rgba(127,182,133,0.3), transparent 40%),
+      var(--bg);
+  }
+  .logo-block{ display:flex; align-items:center; gap:18px; }
+  .logo-badge{
+    width:88px; height:88px; background: var(--mustard);
+    border: 4px solid var(--ink); border-radius: 26px;
+    box-shadow: 0 8px 0 rgba(74,55,40,0.15);
+    display:flex; align-items:center; justify-content:center; font-size:42px;
+    transform: rotate(-5deg);
+  }
+  .logo-text h1{
+    font-family:'Baloo 2', sans-serif; font-weight:800; font-size:54px; line-height:1;
+  }
+  .logo-text p{
+    font-family:'Nunito', sans-serif; font-weight:700; font-size:14px; color: var(--text-muted);
+    margin-top:8px; letter-spacing:0.5px;
+  }
+
+  .mode-select{ display:flex; gap:24px; }
+  .mode-card{
+    width:222px; padding:24px 20px; display:flex; flex-direction:column; gap:14px;
+    align-items:flex-start; position:relative;
+  }
+  .mode-card.locked{ background: var(--locked); box-shadow:none; }
+  .mode-card.locked .mode-icon, .mode-card.locked h3, .mode-card.locked p{ opacity:.6; }
+  .mode-icon{ font-size:34px; }
+  .mode-card h3{ font-family:'Baloo 2', sans-serif; font-weight:700; font-size:20px; }
+  .mode-card p{ font-size:13px; color: var(--text-muted); line-height:1.4; }
+  .mode-tag{
+    position:absolute; top:-14px; right:16px; font-family:'Nunito', sans-serif;
+    font-size:11px; font-weight:800; padding:5px 13px; border-radius:999px;
+    border: 2.5px solid var(--ink); letter-spacing:0.3px;
+  }
+  .mode-tag.active-tag{ background: var(--sage); }
+  .mode-tag.soon-tag{ background: #fff; color: var(--text-muted); }
+
+  .menu-actions{ display:flex; gap:20px; }
+  .btn{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:18px;
+    padding:16px 32px; border: 3px solid var(--ink); border-radius: 22px;
+    cursor:pointer; display:flex; align-items:center; gap:12px;
+    box-shadow: 0 6px 0 rgba(74,55,40,0.2);
+    transition: transform .12s ease, box-shadow .12s ease;
+    background: var(--panel); color: var(--text);
+  }
+  .btn:hover{ transform: translateY(-3px); box-shadow: 0 9px 0 rgba(74,55,40,0.2); }
+  .btn:active{ transform: translateY(2px); box-shadow: 0 2px 0 rgba(74,55,40,0.2); }
+  .btn-primary{ background: var(--mustard); }
+  .btn-danger{ background: var(--terracotta); color:#fff; }
+  .btn .kbd{ background: rgba(74,55,40,0.75); }
+
+  /* =========================== MESA =========================== */
+  .table-screen{ padding:28px; gap:20px; }
+  .table-topbar{ display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
+  .topbar-left{ display:flex; align-items:center; gap:12px; }
+  .topbar-left .logo-badge{ width:46px; height:46px; font-size:22px; border-width:3px; border-radius:14px; box-shadow: 0 4px 0 rgba(74,55,40,0.15); }
+  .topbar-left span{ font-family:'Baloo 2', sans-serif; font-weight:700; font-size:19px; }
+  .chip-balance{
+    display:flex; align-items:center; gap:10px; padding:10px 18px;
+    font-family:'Nunito', sans-serif; font-weight:800; font-size:16px;
+  }
+  .chip-dot{ width:14px; height:14px; border-radius:50%; background: var(--mustard); border:2px solid var(--ink); }
+
+  .table-body{ flex:1; display:grid; grid-template-columns: 1fr 300px; gap:20px; min-height:0; }
+  .table-main{ display:flex; flex-direction:column; gap:18px; min-height:0; }
+
+  .wood{
+    background: repeating-linear-gradient(180deg, var(--wood) 0px, var(--wood) 26px, var(--wood-dark) 26px, var(--wood-dark) 28px);
+    border: 4px solid var(--ink); border-radius: 44px;
+    box-shadow: 0 10px 0 rgba(74,55,40,0.18);
+    flex:1; position:relative; padding:22px 32px;
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+
+  .bots-row{ display:flex; justify-content:space-between; gap:16px; }
+  .bot-card{
+    width:220px; background: var(--panel); border: 3px solid var(--ink);
+    border-radius: 22px; box-shadow: 0 6px 0 rgba(74,55,40,0.25);
+    padding:12px 14px; display:flex; gap:12px; align-items:center;
+  }
+  .bot-card.folded{ opacity:.55; }
+  .bot-avatar{
+    width:52px; height:52px; border-radius:50%; border: 3px solid var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:17px; color:#fff; flex-shrink:0;
+  }
+  .bot-info .bot-name{ font-family:'Baloo 2', sans-serif; font-weight:700; font-size:15px; }
+  .bot-info .bot-chips{ font-family:'Nunito', sans-serif; font-weight:800; font-size:13px; color: var(--text-muted); margin-top:2px; }
+  .bot-status{
+    margin-top:6px; display:inline-block; font-family:'Nunito', sans-serif; font-size:10px; font-weight:800;
+    text-transform:uppercase; padding:3px 10px; border-radius:999px; border: 2px solid var(--ink); letter-spacing:0.3px;
+  }
+  .status-thinking{ background: var(--dusty-blue); color:#fff; }
+  .status-call{ background: var(--sage); color: var(--text); }
+  .status-raise{ background: var(--mustard); color: var(--text); }
+  .status-fold{ background: var(--locked); color: var(--text-muted); }
+
+  .table-center{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+  .community-cards{ display:flex; gap:14px; }
+
+  .card{
+    background:#fff; border: 3px solid var(--ink); border-radius: 18px;
+    box-shadow: 0 5px 0 rgba(74,55,40,0.25);
+    display:flex; flex-direction:column; justify-content:space-between;
+    font-family:'Nunito', sans-serif; font-weight:800; padding:6px 8px; position:relative;
+  }
+  .card--community{ width:80px; height:110px; }
+  .card--community .rank{ font-size:17px; }
+  .card--community .suit-big{ font-size:24px; align-self:center; }
+  .card--hand{ width:150px; height:208px; border-width:4px; box-shadow: 0 7px 0 rgba(74,55,40,0.25); border-radius:22px; }
+  .card--hand .rank{ font-size:28px; }
+  .card--hand .suit-big{ font-size:44px; align-self:center; }
+  .card--empty{ background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.55); box-shadow:none; }
+  .card.red{ color: var(--red-suit); }
+  .card.black{ color: var(--text); }
+  .card .corner-bottom{ align-self:flex-end; transform: rotate(180deg); }
+
+  .pot-badge{
+    display:flex; align-items:center; gap:10px; background: var(--mustard);
+    border: 3px solid var(--ink); border-radius:999px; padding:12px 26px;
+    box-shadow: 0 6px 0 rgba(74,55,40,0.25);
+    font-family:'Nunito', sans-serif; font-weight:800; font-size:17px;
+  }
+
+  .player-area{ display:flex; align-items:center; justify-content:center; gap:36px; padding-top:6px; }
+  .player-hand{ display:flex; gap:12px; }
+  .player-hand .card--hand:nth-child(1){ transform: rotate(-4deg); }
+  .player-hand .card--hand:nth-child(2){ transform: rotate(4deg); }
+
+  .action-panel{
+    display:flex; align-items:center; gap:12px; background: var(--panel);
+    border: 3px solid var(--ink); border-radius: 28px; box-shadow: 0 7px 0 rgba(74,55,40,0.2);
+    padding:16px 20px;
+  }
+  .action-btn{
+    display:flex; flex-direction:column; align-items:center; gap:6px; width:104px;
+    padding:12px 8px; border: 3px solid var(--ink); border-radius: 18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:14px; cursor:pointer;
+    box-shadow: 0 4px 0 rgba(74,55,40,0.25); transition: transform .1s ease;
+  }
+  .action-btn:hover{ transform: translateY(-2px); }
+  .action-fold{ background: var(--terracotta); color:#fff; }
+  .action-call{ background: var(--dusty-blue); color:#fff; }
+  .action-raise{ background: var(--sage); color: var(--text); }
+  .action-btn .kbd{ background: rgba(74,55,40,0.4); }
+
+  .raise-stepper{
+    display:flex; flex-direction:column; align-items:center; gap:6px; padding-left:16px;
+    border-left: 3px dashed rgba(74,55,40,0.25); font-family:'Nunito', sans-serif;
+  }
+  .raise-value{ font-size:20px; font-weight:800; }
+  .raise-slider{ width:140px; height:12px; background: var(--locked); border: 2.5px solid var(--ink); border-radius:999px; position:relative; }
+  .raise-slider::after{
+    content:""; position:absolute; top:-5px; left:58%; width:20px; height:20px;
+    background: var(--sage); border: 2.5px solid var(--ink); border-radius:50%;
+  }
+
+  .hud-log{ display:flex; flex-direction:column; gap:12px; padding:20px; min-height:0; }
+  .hud-log h4{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:16px; padding-bottom:10px;
+    border-bottom: 3px solid var(--ink);
+  }
+  .log-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+  .log-item{
+    font-family:'Nunito', sans-serif; font-weight:600; font-size:13px; padding:9px 11px;
+    border-radius:14px; background: var(--bg); border: 2px solid rgba(74,55,40,0.15);
+  }
+  .log-item b{ font-family:'Nunito', sans-serif; font-weight:800; }
+  .log-item.you{ border-color: var(--sage); }
+</style>
+</head>
+<body>
+
+<div class="app-frame">
+
+  <div class="dev-toggle">
+    <button id="btn-menu" class="active-toggle" onclick="showScreen('menu')">Tela de Início</button>
+    <button id="btn-table" onclick="showScreen('table')">Mesa de Jogo</button>
+  </div>
+
+  <!-- ===================== A) TELA DE MENU ===================== -->
+  <div class="screen menu-screen active" id="screen-menu">
+
+    <div class="logo-block">
+      <div class="logo-badge">♠</div>
+      <div class="logo-text">
+        <h1>POKER MASTER</h1>
+        <p>Cozy Table Edition — Texas Hold'em</p>
+      </div>
+    </div>
+
+    <div class="mode-select">
+      <div class="mode-card cozy-panel">
+        <span class="mode-tag active-tag">ATIVO</span>
+        <div class="mode-icon">♣</div>
+        <h3>Texas Hold'em</h3>
+        <p>No-Limit. Comece com 2.000 fichas contra 3 bots.</p>
+      </div>
+      <div class="mode-card cozy-panel locked">
+        <span class="mode-tag soon-tag">EM BREVE</span>
+        <div class="mode-icon">🂠</div>
+        <h3>Pif Paf</h3>
+        <p>Modo clássico de baralho em desenvolvimento.</p>
+      </div>
+      <div class="mode-card cozy-panel locked">
+        <span class="mode-tag soon-tag">EM BREVE</span>
+        <div class="mode-icon">✦</div>
+        <h3>Modo Inédito</h3>
+        <p>Mecânica original, ainda em conceito.</p>
+      </div>
+    </div>
+
+    <div class="menu-actions">
+      <button class="btn btn-primary">Jogar <span class="kbd">Enter</span></button>
+      <button class="btn">Configurações</button>
+      <button class="btn btn-danger">Sair <span class="kbd">Esc</span></button>
+    </div>
+
+  </div>
+
+  <!-- ===================== B) MESA DE JOGO ===================== -->
+  <div class="screen table-screen" id="screen-table">
+
+    <div class="table-topbar">
+      <div class="topbar-left">
+        <div class="logo-badge">♠</div>
+        <span>POKER MASTER</span>
+      </div>
+      <div class="topbar-right">
+        <div class="chip-balance cozy-panel"><span class="chip-dot"></span> 2.000</div>
+      </div>
+    </div>
+
+    <div class="table-body">
+
+      <div class="table-main">
+        <div class="wood">
+
+          <div class="bots-row">
+            <div class="bot-card">
+              <div class="bot-avatar" style="background:var(--terracotta)">RB</div>
+              <div class="bot-info">
+                <div class="bot-name">Rosa "Blefe"</div>
+                <div class="bot-chips">1.240</div>
+                <span class="bot-status status-thinking">Pensando...</span>
+              </div>
+            </div>
+
+            <div class="bot-card folded">
+              <div class="bot-avatar" style="background:var(--lavender)">TK</div>
+              <div class="bot-info">
+                <div class="bot-name">Tio Kondo</div>
+                <div class="bot-chips">860</div>
+                <span class="bot-status status-fold">Fold</span>
+              </div>
+            </div>
+
+            <div class="bot-card">
+              <div class="bot-avatar" style="background:var(--dusty-blue)">MV</div>
+              <div class="bot-info">
+                <div class="bot-name">Marina V.</div>
+                <div class="bot-chips">2.310</div>
+                <span class="bot-status status-call">Call</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-center">
+            <div class="community-cards">
+              <div class="card card--community black"><span class="rank">A</span><span class="suit-big">♠</span><span class="rank corner-bottom">A</span></div>
+              <div class="card card--community red"><span class="rank">K</span><span class="suit-big">♥</span><span class="rank corner-bottom">K</span></div>
+              <div class="card card--community black"><span class="rank">7</span><span class="suit-big">♣</span><span class="rank corner-bottom">7</span></div>
+              <div class="card card--community red"><span class="rank">4</span><span class="suit-big">♦</span><span class="rank corner-bottom">4</span></div>
+              <div class="card card--community card--empty"></div>
+            </div>
+            <div class="pot-badge">🪙 POTE: 480</div>
+          </div>
+
+          <div class="player-area">
+            <div class="player-hand">
+              <div class="card card--hand red"><span class="rank">Q</span><span class="suit-big">♥</span><span class="rank corner-bottom">Q</span></div>
+              <div class="card card--hand black"><span class="rank">Q</span><span class="suit-big">♠</span><span class="rank corner-bottom">Q</span></div>
+            </div>
+
+            <div class="action-panel">
+              <div class="action-btn action-fold">Fold <span class="kbd">F</span></div>
+              <div class="action-btn action-call">Call <span class="kbd">C</span></div>
+              <div class="action-btn action-raise">Raise <span class="kbd">R</span></div>
+              <div class="raise-stepper">
+                <div class="raise-value">120</div>
+                <div class="raise-slider"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="hud-log cozy-panel">
+        <h4>Histórico da Rodada</h4>
+        <div class="log-list">
+          <div class="log-item"><b>Marina V.</b> deu Call (120)</div>
+          <div class="log-item"><b>Tio Kondo</b> deu Fold</div>
+          <div class="log-item"><b>Rosa "Blefe"</b> deu Raise (200)</div>
+          <div class="log-item you"><b>Você</b> deu Call (200)</div>
+          <div class="log-item">— Turn revelado: 4♦ —</div>
+          <div class="log-item"><b>Marina V.</b> deu Check</div>
+          <div class="log-item"><b>Rosa "Blefe"</b> está pensando...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  function showScreen(name){
+    document.getElementById('screen-menu').classList.toggle('active', name === 'menu');
+    document.getElementById('screen-table').classList.toggle('active', name === 'table');
+    document.getElementById('btn-menu').classList.toggle('active-toggle', name === 'menu');
+    document.getElementById('btn-table').classList.toggle('active-toggle', name === 'table');
+  }
+</script>
+
+</body>
+</html>
