@@ -16,39 +16,16 @@ from rede.anfitriao import AnfitriaoSala
 from rede.cliente import ClienteSala
 from rede.descoberta import procurar_sala_na_rede
 from rede.protocolo import PORTA_TCP_PADRAO
+from rede import protocolo
+from ui_widgets import CampoTexto
+from chat_widget import ChatWidget
 
-
-class CampoTexto:
-    """Campo de texto simples de uma linha: clique para focar, digita, backspace apaga."""
-
-    def __init__(self, rect, placeholder="", max_len=24, maiusculas=False):
-        self.rect = rect
-        self.texto = ""
-        self.placeholder = placeholder
-        self.max_len = max_len
-        self.maiusculas = maiusculas
-        self.focado = False
-
-    def tratar_evento(self, evento):
-        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-            self.focado = self.rect.collidepoint(evento.pos)
-        elif evento.type == pygame.KEYDOWN and self.focado:
-            if evento.key == pygame.K_BACKSPACE:
-                self.texto = self.texto[:-1]
-            elif evento.key in (pygame.K_RETURN, pygame.K_TAB):
-                pass
-            elif evento.unicode and evento.unicode.isprintable() and len(self.texto) < self.max_len:
-                ch = evento.unicode.upper() if self.maiusculas else evento.unicode
-                self.texto += ch
-
-    def desenhar(self, tela):
-        pygame.draw.rect(tela, PANEL, self.rect, border_radius=10)
-        cor_borda = INK if self.focado else TEXT_MUTED
-        pygame.draw.rect(tela, cor_borda, self.rect, width=3 if self.focado else 2, border_radius=10)
-        texto_exibir = self.texto if self.texto else self.placeholder
-        cor_texto = INK if self.texto else TEXT_MUTED
-        desenhar_texto(tela, texto_exibir, self.rect.x + 14, self.rect.centery - 9,
-                        tamanho=16, cor=cor_texto, familia="mono")
+# Cada jogo tem seu próprio limite de assentos (Dominó duplo-seis só
+# comporta 2-4 jogadores; Hold'em/Pif Paf usam o limite geral de 8 já
+# existente no solo vs bots). Fonte única usada tanto ao criar a sala
+# (AnfitriaoSala.max_jogadores) quanto para calcular quantos bots cabem nas
+# vagas restantes (main.py:iniciar_partida_multiplayer_host).
+MAX_JOGADORES_POR_JOGO = {"holdem": 8, "pifpaf": 8, "domino": 4}
 
 
 def _parse_ip_porta(texto):
@@ -65,8 +42,9 @@ def _parse_ip_porta(texto):
 class CriarSalaScreen:
     """Pede o nome do jogador e sobe o AnfitriaoSala ao confirmar."""
 
-    def __init__(self, app):
+    def __init__(self, app, jogo="holdem"):
         self.app = app
+        self.jogo = jogo
         self.campo_nome = CampoTexto(pygame.Rect(0, 0, 360, 52), placeholder="Seu nome")
         self.campo_nome.focado = True
         self.botao_criar = pygame.Rect(0, 0, 260, 60)
@@ -75,12 +53,12 @@ class CriarSalaScreen:
 
     def tratar_evento(self, evento):
         if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
-            self.app.ir_para_config("holdem")
+            self.app.ir_para_config(self.jogo)
             return
         self.campo_nome.tratar_evento(evento)
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_voltar.collidepoint(evento.pos):
-                self.app.ir_para_config("holdem")
+                self.app.ir_para_config(self.jogo)
             elif self.botao_criar.collidepoint(evento.pos):
                 self._criar_sala()
         elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_RETURN:
@@ -88,11 +66,12 @@ class CriarSalaScreen:
 
     def _criar_sala(self):
         nome = self.campo_nome.texto.strip() or "Anfitrião"
-        sala = AnfitriaoSala(nome)
+        max_jogadores = MAX_JOGADORES_POR_JOGO.get(self.jogo, 8)
+        sala = AnfitriaoSala(nome, max_jogadores=max_jogadores)
         if not sala.iniciar():
             self.erro = f"Não foi possível abrir a sala: {sala.erro_fatal}"
             return
-        self.app.ir_para_lobby_host(sala)
+        self.app.ir_para_lobby_host(sala, jogo=self.jogo)
 
     def atualizar(self, dt):
         pass
@@ -134,8 +113,8 @@ class EntrarSalaScreen:
     def __init__(self, app):
         self.app = app
         self.campo_nome = CampoTexto(pygame.Rect(0, 0, 360, 52), placeholder="Seu nome")
-        self.campo_codigo = CampoTexto(pygame.Rect(0, 0, 360, 52), placeholder="Código (ex.: PIF-4X7Q)",
-                                        max_len=12, maiusculas=True)
+        self.campo_codigo = CampoTexto(pygame.Rect(0, 0, 360, 52), placeholder="Código (ex.: KTR4)",
+                                        max_len=8, maiusculas=True)
         self.campo_ip = CampoTexto(pygame.Rect(0, 0, 360, 44), placeholder="ou IP:porta manual", max_len=32)
         self.botao_conectar = pygame.Rect(0, 0, 260, 60)
         self.botao_voltar = pygame.Rect(0, 0, 150, 48)
@@ -243,11 +222,12 @@ class EntrarSalaScreen:
 class LobbyScreen:
     """Comum a host e cliente: mostra quem já entrou e aguarda o host iniciar."""
 
-    def __init__(self, app, sala_rede=None, sala_cliente=None):
+    def __init__(self, app, sala_rede=None, sala_cliente=None, jogo="holdem"):
         self.app = app
         self.sala_rede = sala_rede        # AnfitriaoSala, só quando somos o host
         self.sala_cliente = sala_cliente  # ClienteSala, só quando somos cliente
         self.eh_host = sala_rede is not None
+        self.jogo = jogo  # só é decidido pelo host - o cliente descobre via "iniciar_partida"
 
         self.completar_com_bots = True
         self.checkbox_bots = pygame.Rect(0, 0, 26, 26)
@@ -255,6 +235,15 @@ class LobbyScreen:
         self.botao_sair = pygame.Rect(0, 0, 150, 48)
 
         self.mensagem_final = None  # sala encerrada / desconectado (lado cliente)
+        self.chat = ChatWidget(self._enviar_chat)
+
+    def _enviar_chat(self, texto):
+        if self.eh_host:
+            nome = self.sala_rede.nome_anfitriao
+            self.chat.adicionar_mensagem(nome, texto)
+            self.sala_rede.enviar_para_todos({"tipo": protocolo.CHAT, "remetente": nome, "texto": texto})
+        else:
+            self.sala_cliente.enviar({"tipo": protocolo.CHAT, "texto": texto})
 
     def _sair(self):
         if self.eh_host:
@@ -264,6 +253,8 @@ class LobbyScreen:
         self.app.ir_para_menu()
 
     def tratar_evento(self, evento):
+        if self.chat.tratar_evento(evento):
+            return
         if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
             self._sair()
             return
@@ -282,15 +273,22 @@ class LobbyScreen:
 
     def _iniciar_partida(self):
         jogadores = self.sala_rede.lista_jogadores_lobby()
-        self.app.iniciar_partida_multiplayer_host(self.sala_rede, jogadores, self.completar_com_bots)
+        self.app.iniciar_partida_multiplayer_host(self.sala_rede, jogadores, self.completar_com_bots, self.jogo)
 
     def atualizar(self, dt):
+        if self.eh_host and self.sala_rede:
+            while not self.sala_rede.mensagens_entrantes.empty():
+                _jogador_id, msg = self.sala_rede.mensagens_entrantes.get_nowait()
+                if msg.get("tipo") == protocolo.CHAT:
+                    self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
         if not self.eh_host and self.sala_cliente:
             while not self.sala_cliente.mensagens_entrantes.empty():
                 msg = self.sala_cliente.mensagens_entrantes.get_nowait()
                 if msg.get("tipo") == "iniciar_partida":
-                    self.app.iniciar_partida_multiplayer_cliente(self.sala_cliente)
+                    self.app.iniciar_partida_multiplayer_cliente(self.sala_cliente, msg.get("jogo", "holdem"))
                     return
+                if msg.get("tipo") == protocolo.CHAT:
+                    self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
             if self.sala_cliente.status in ("sala_encerrada", "desconectado"):
                 self.mensagem_final = self.sala_cliente.erro or "Conexão com o anfitrião perdida."
 
@@ -305,6 +303,8 @@ class LobbyScreen:
         painel = pygame.Rect(0, 0, 480, 440)
         painel.center = (largura // 2, altura // 2 + 10)
         desenhar_painel(tela, painel, radius=24)
+
+        self.chat.desenhar(tela, largura, altura)
 
         if self.mensagem_final:
             desenhar_texto(tela, "Sala encerrada", painel.centerx, painel.centery - 20,

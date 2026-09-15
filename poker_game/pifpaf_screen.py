@@ -11,9 +11,11 @@ Responsavel por:
  - Mostrar o resultado de cada mao (pontos pagos por quem nao bateu) e o fim de jogo
 """
 import math
+import queue
 from collections import deque
 
 import pygame
+from deck import Card
 from ui_theme import (
     BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
@@ -21,6 +23,9 @@ from ui_theme import (
     desenhar_glow_de_vez,
 )
 from pifpaf_bot_ai import decidir_fonte_compra_bot, escolher_descarte_bot
+from pifpaf_logic import TIPO_HUMANO_REMOTO
+from chat_widget import ChatWidget
+from rede import protocolo
 
 DELAY_BOT_SEGUNDOS = 0.9
 LIMIAR_ARRASTO_PX = 6
@@ -70,10 +75,11 @@ def _posicoes_assentos(mesa_rect, n_jogadores):
 
 
 class PifPafTableScreen:
-    def __init__(self, app, mesa):
+    def __init__(self, app, mesa, sala_rede=None):
         self.app = app
         self.mesa = mesa
         self.id_humano = mesa.jogadores[0].id
+        self.sala_rede = sala_rede  # AnfitriaoSala, só quando é uma mesa multiplayer (host)
 
         self.carta_selecionada = None
         self.arraste = None  # {"indice", "inicio", "pos", "moveu"} enquanto arrasta uma carta da mao
@@ -94,6 +100,7 @@ class PifPafTableScreen:
         self.descarte_rect = pygame.Rect(0, 0, *CARTA_MONTE_TAMANHO)
 
         self.historico = deque(maxlen=1)
+        self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
         self._iniciar_mao()
 
     # ---------------------------------------------------------------- Historico
@@ -105,20 +112,148 @@ class PifPafTableScreen:
         self.carta_selecionada = None
         self.arraste = None
         self.historico.clear()
+        self._enviar_maos_privadas()
+        self._broadcast_estado()
 
     def _jogador(self, id_jogador):
         return next(j for j in self.mesa.jogadores if j.id == id_jogador)
 
+    def _jogador_por_id(self, id_jogador):
+        return next((j for j in self.mesa.jogadores if j.id == id_jogador), None)
+
+    # ---------------------------------------------------------------- Rede (host)
+    def _enviar_chat_host(self, texto):
+        nome = self.sala_rede.nome_anfitriao
+        self.chat.adicionar_mensagem(nome, texto)
+        self.sala_rede.enviar_para_todos({"tipo": protocolo.CHAT, "remetente": nome, "texto": texto})
+
+    def _enviar_maos_privadas(self):
+        if self.sala_rede is None:
+            return
+        for jogador in self.mesa.jogadores:
+            if jogador.tipo == TIPO_HUMANO_REMOTO and not jogador.eliminado:
+                self.sala_rede.enviar_para(jogador.id, {
+                    "tipo": protocolo.SUA_MAO,
+                    "cartas": [[carta.valor, carta.naipe] for carta in jogador.mao],
+                })
+
+    def _broadcast_estado(self):
+        if self.sala_rede is None:
+            return
+        self._enviar_maos_privadas()
+        self.sala_rede.enviar_para_todos(self._serializar_estado())
+
+    def _serializar_resultado(self, resultado):
+        if resultado is None:
+            return None
+        return {
+            "vencedor": resultado.get("vencedor"),
+            "pote": resultado.get("pote"),
+            "empate": resultado.get("empate", False),
+            "mao_fechada": resultado.get("mao_fechada", False),
+            "detalhes": [{"jogador": d["jogador"], "pontos": d["pontos"]}
+                         for d in resultado.get("detalhes", [])],
+        }
+
+    def _serializar_estado(self):
+        jogador_da_vez = self.mesa.jogador_da_vez()
+        jogadores = []
+        for j in self.mesa.jogadores:
+            jogadores.append({
+                "id": j.id, "nome": j.nome, "stack": j.stack, "eliminado": j.eliminado,
+                "num_cartas": len(j.mao),
+                "ja_agiu_nesta_mao": j.id in self.mesa.jogadores_ja_agiram_na_mao,
+                "desconectado": bool(self.sala_rede and j.id in self.sala_rede.desconectados),
+            })
+
+        return {
+            "tipo": protocolo.ESTADO,
+            "mao_numero": self.mesa.mao_numero,
+            "vira": [self.mesa.vira.valor, self.mesa.vira.naipe] if self.mesa.vira else None,
+            "coringa_valor": self.mesa.coringa_valor,
+            "usar_joker": self.mesa.usar_joker,
+            "monte_restante": len(self.mesa.monte),
+            "descarte_topo": [self.mesa.descarte[-1].valor, self.mesa.descarte[-1].naipe] if self.mesa.descarte else None,
+            "comprou_nesta_vez": self.mesa.comprou_nesta_vez,
+            "jogador_da_vez_id": jogador_da_vez.id if jogador_da_vez else None,
+            "jogadores": jogadores,
+            "ultima_acao": self.historico[-1][0] if self.historico else None,
+            "resultado": self._serializar_resultado(self.mesa.resultado_mao),
+        }
+
+    def _drenar_mensagens_rede(self):
+        while True:
+            try:
+                jogador_id, msg = self.sala_rede.mensagens_entrantes.get_nowait()
+            except queue.Empty:
+                break
+            tipo = msg.get("tipo")
+            if tipo == protocolo.ACAO_PIFPAF:
+                self._processar_acao_remota(jogador_id, msg)
+            elif tipo == protocolo.CHAT:
+                self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
+
+    def _processar_acao_remota(self, jogador_id, msg):
+        jogador_da_vez = self.mesa.jogador_da_vez()
+        jogador = self._jogador_por_id(jogador_id)
+        acao = msg.get("acao")
+        carta = None
+
+        erro = None
+        if jogador is None:
+            erro = "Jogador desconhecido"
+        elif jogador_da_vez is None or jogador_da_vez.id != jogador_id:
+            erro = "Não é a sua vez"
+        elif acao == "bater_mao_fechada":
+            if not self.mesa.pode_bater_mao_fechada(jogador):
+                erro = "Mão fechada não disponível"
+        elif acao in ("comprar_monte", "comprar_descarte"):
+            if not self.mesa.pode_comprar():
+                erro = "Você já comprou nesta rodada"
+        elif acao == "bater":
+            if not self.mesa.pode_bater(jogador):
+                erro = "Não é possível bater agora"
+        elif acao == "descartar":
+            dados_carta = msg.get("carta")
+            if not dados_carta or len(dados_carta) != 2:
+                erro = "Carta inválida"
+            else:
+                carta = Card(dados_carta[0], dados_carta[1])
+                if self.mesa.pode_comprar():
+                    erro = "Precisa comprar antes de descartar"
+                elif carta not in jogador.mao:
+                    erro = "Você não tem essa carta"
+        else:
+            erro = "Ação inválida"
+
+        if erro:
+            self.sala_rede.enviar_para(jogador_id, {"tipo": protocolo.ERRO_ACAO, "motivo": erro})
+            return
+
+        if acao == "bater_mao_fechada":
+            self._bater_mao_fechada(jogador)
+        elif acao == "comprar_monte":
+            self._comprar(jogador, "monte")
+        elif acao == "comprar_descarte":
+            self._comprar(jogador, "descarte")
+        elif acao == "bater":
+            self._bater(jogador)
+        elif acao == "descartar":
+            self._descartar(jogador, carta)
+
     # ---------------------------------------------------------------- Eventos
     def tratar_evento(self, evento):
+        if self.chat is not None and self.chat.tratar_evento(evento):
+            return
+
         if self.app.jogo_finalizado:
             if evento.type == pygame.MOUSEBUTTONDOWN:
-                self.app.ir_para_menu()
+                self._sair_para_menu()
             return
 
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_sair.collidepoint(evento.pos):
-                self.app.ir_para_menu()
+                self._sair_para_menu()
                 return
 
         if self.mesa.resultado_mao is not None:
@@ -228,18 +363,21 @@ class PifPafTableScreen:
             carta = self.mesa.comprar_do_descarte(jogador)
             if carta is not None:
                 self._registrar(f"{jogador.nome} comprou {_carta_str(carta)} do descarte", BLUE)
+        self._broadcast_estado()
 
     def _bater(self, jogador):
         resultado = self.mesa.bater(jogador)
         if resultado is not None:
             self._registrar(f"{jogador.nome} bateu! +{resultado['pote']} fichas", MINT)
             self.mesa.marcar_eliminados()
+        self._broadcast_estado()
 
     def _bater_mao_fechada(self, jogador):
         resultado = self.mesa.bater_mao_fechada(jogador)
         if resultado is not None:
             self._registrar(f"{jogador.nome} bateu de mão fechada! +{resultado['pote']} fichas (dobrado)", YELLOW)
             self.mesa.marcar_eliminados()
+        self._broadcast_estado()
 
     def _descartar(self, jogador, carta):
         # Se descartar essa carta especifica fecha o resto da mao (jeito mais
@@ -251,22 +389,34 @@ class PifPafTableScreen:
                 self._registrar(f"{jogador.nome} bateu descartando {_carta_str(carta)}! +{resultado['pote']} fichas", MINT)
                 self.mesa.marcar_eliminados()
                 self.carta_selecionada = None
+                self._broadcast_estado()
                 return
 
         self.mesa.descartar(jogador, carta)
         self._registrar(f"{jogador.nome} descartou {_carta_str(carta)}", CORAL)
         self.carta_selecionada = None
+        self._broadcast_estado()
 
     def _comecar_proxima_mao_ou_finalizar(self):
         if self.mesa.jogo_tem_vencedor():
             vencedor = self.mesa.jogadores_na_mesa()[0]
+            if self.sala_rede is not None:
+                self.sala_rede.enviar_para_todos({"tipo": protocolo.FIM_DE_JOGO, "vencedor": vencedor.nome})
             self.app.finalizar_jogo(vencedor.nome)
         else:
             self._iniciar_mao()
 
+    def _sair_para_menu(self):
+        if self.sala_rede is not None:
+            self.sala_rede.encerrar()
+        self.app.ir_para_menu()
+
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
         self.tempo_decorrido += dt
+
+        if self.sala_rede is not None:
+            self._drenar_mensagens_rede()
 
         if self.app.jogo_finalizado or self.mesa.resultado_mao is not None:
             return
@@ -275,7 +425,13 @@ class PifPafTableScreen:
         if jogador_da_vez is None:
             return
 
-        if not jogador_da_vez.is_bot:
+        desconectado = (
+            self.sala_rede is not None
+            and jogador_da_vez.tipo == TIPO_HUMANO_REMOTO
+            and jogador_da_vez.id in self.sala_rede.desconectados
+        )
+
+        if not (jogador_da_vez.is_bot or desconectado):
             self.timer_bot = 0.0
             return
 
@@ -313,6 +469,9 @@ class PifPafTableScreen:
         self._desenhar_centro_mesa(tela, mesa_rect)
         self._desenhar_jogadores(tela, mesa_rect)
         self._desenhar_historico(tela, largura, altura)
+
+        if self.chat is not None:
+            self.chat.desenhar(tela, largura, altura)
 
         if self.app.jogo_finalizado:
             self._desenhar_tela_final(tela, largura, altura)
@@ -408,6 +567,9 @@ class PifPafTableScreen:
 
             if jogador.eliminado:
                 status = "Eliminado"
+            elif (self.sala_rede is not None and jogador.tipo == TIPO_HUMANO_REMOTO
+                    and jogador.id in self.sala_rede.desconectados):
+                status = "Desconectado"
             elif eh_humano:
                 status = None
             elif eh_vez_dele and self.mesa.comprou_nesta_vez:

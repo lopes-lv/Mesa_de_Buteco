@@ -210,6 +210,19 @@ class AnfitriaoSala:
         if tipo == protocolo.SAIR:
             cliente.conn.close()
             return
+        if tipo == protocolo.CHAT:
+            # O relay (resolver o nome do remetente e reenviar pra todos,
+            # inclusive de volta pra quem mandou) acontece aqui na camada de
+            # rede - assim toda tela (lobby, mesa do Hold'em, mesa do Pif
+            # Paf) so precisa tratar "chat" chegando pela fila igual a
+            # qualquer outra mensagem, sem duplicar essa lógica.
+            nome = cliente.nome or self.jogadores_conectados.get(cliente.id, "?")
+            texto = str(msg.get("texto", "")).strip()[:200]
+            if texto:
+                mensagem_relay = {"tipo": protocolo.CHAT, "remetente": nome, "texto": texto}
+                self.enviar_para_todos(mensagem_relay)
+                self.mensagens_entrantes.put((cliente.id, mensagem_relay))
+            return
         self.mensagens_entrantes.put((cliente.id, msg))
 
     def _registrar_entrada(self, cliente, msg):

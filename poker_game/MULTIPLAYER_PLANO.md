@@ -47,7 +47,7 @@ MenuScreen
 
 - **CriarSalaScreen**: pede o nome do jogador, ao confirmar sobe o
   `AnfitriaoSala` (host), gera o código e mostra:
-  - Código grande (ex.: `PIF-4X7Q`), em destaque, fácil de ditar em voz alta.
+  - Código grande (ex.: `KTR4`), em destaque, fácil de ditar em voz alta.
   - IP local + porta como *fallback* (ver seção 4).
   - Lista ao vivo de quem já entrou (nome + "pronto").
   - Opção "completar vagas restantes com bots" (reaproveita `NOMES_BOTS` do
@@ -66,15 +66,15 @@ Essas telas seguem o mesmo estilo visual (`ui_theme.py`: `desenhar_painel`,
 
 ## 3. Geração e descoberta do código de sala
 
-1. **Código**: 4 a 6 caracteres alfanuméricos maiúsculos, sem caracteres
+1. **Código**: 3 letras + 1 número maiúsculos (ex.: `KTR4`), sem caracteres
    ambíguos (sem `O`/`0`, `I`/`1`), gerado pelo host ao criar a sala
-   (`random.choices` sobre um alfabeto reduzido). Curto o bastante para ser
+   (`rede/descoberta.py:gerar_codigo()`). Curto o bastante para ser
    falado/digitado em voz alta entre pessoas na mesma sala física.
 2. **Descoberta automática (caminho feliz)**: o host, além do socket TCP de
    jogo, abre um socket **UDP** escutando numa porta fixa
    (ex.: `52999`). Quando alguém digita um código em `EntrarSalaScreen`, o
    jogo manda um **broadcast UDP** na rede local perguntando
-   `{"tipo": "procurar_sala", "codigo": "PIF-4X7Q"}`. Todo host escutando
+   `{"tipo": "procurar_sala", "codigo": "KTR4"}`. Todo host escutando
    aquele código responde (unicast, direto pro IP de quem perguntou) com
    `{"tipo": "sala_encontrada", "ip": "...", "porta_tcp": ..., "anfitriao": "..."}`.
    O cliente então conecta via TCP nesse IP/porta.
@@ -222,10 +222,16 @@ Mapeado arquivo por arquivo, para deixar claro o tamanho do trabalho:
 
 - Jogar pela internet (isso exigiria um servidor relay/matchmaking e lidar
   com NAT — bem mais complexo que o pedido, que é "multiplayer local").
-- Chat de texto/voz, espectadores, host migration, reconexão.
-- Multiplayer no Pif Paf — a arquitetura de rede é a mesma, mas o v1 foca no
-  Texas Hold'em (o "modo base" do projeto, conforme o `GDD.md`); dá pra
-  reaproveitar tudo depois.
+- Chat de voz, espectadores, host migration, reconexão. (Chat de **texto**
+  foi implementado — ver seção 11.)
+- ~~Multiplayer no Pif Paf~~ — implementado (ver seção 11): a arquitetura de
+  rede era a mesma do Hold'em, só precisou de `tipo` em `PifPafPlayer`,
+  serialização de estado equivalente e uma tela remota própria
+  (`mesa_remota_pifpaf_screen.py`), já que `PifPafTable` muda de mão a cada
+  compra/descarte (diferente do Hold'em, onde a mão só muda no fold).
+- Revelar as cartas de todos no showdown/liquidação para os clientes remotos
+  — hoje eles só veem o texto do resultado (vencedores, pote, categoria/
+  pontos), não as cartas reveladas; o host continua vendo tudo normalmente.
 
 ## 10. Roteiro de implementação sugerido (fases)
 
@@ -256,7 +262,93 @@ Mapeado arquivo por arquivo, para deixar claro o tamanho do trabalho:
       falta o teste manual com 2 PCs físicos na mesma rede Wi-Fi (só isso
       valida de fato a descoberta UDP e o aviso de firewall do Windows).
 
-## 11. Como testar sem precisar de duas máquinas
+## 11. Pif Paf multiplayer e chat de texto
+
+Adicionados depois do v1 inicial (que só cobria Hold'em, sem chat):
+
+- **Código de sala mais simples**: trocado de 5 caracteres com prefixo
+  (`PIF-XXXXX`) para **3 letras + 1 número** (ex.: `KTR4`,
+  `rede/descoberta.py:gerar_codigo()`), mais rápido de ditar/digitar.
+- **Chat de texto** (`chat_widget.py`, classe `ChatWidget`): aba fixa no
+  canto esquerdo da tela (fechada por padrão, com indicador "●" quando
+  chegam mensagens novas), expande num painel com histórico + campo de
+  texto. Presente na `LobbyScreen` e nas duas mesas (Hold'em e Pif Paf), dos
+  dois lados (host e cliente). Protocolo novo: `CHAT` (`rede/protocolo.py`) —
+  o **relay acontece na camada de rede** (`AnfitriaoSala._processar_mensagem`
+  resolve o nome de quem mandou e reenvia pra todo mundo, inclusive de volta
+  pra quem mandou), então nenhuma tela precisa duplicar essa lógica; o host
+  só faz eco local quando é ele mesmo quem digita, já que não recebe suas
+  próprias mensagens de volta pela rede. `CampoTexto` (usado no chat e nas
+  telas de sala) foi extraído para `ui_widgets.py` para evitar import
+  circular entre `chat_widget.py` e `multiplayer_screens.py`.
+- **Multiplayer no Pif Paf**: mesmo padrão host-autoritativo do Hold'em,
+  mas com uma diferença importante — no Pif Paf a mão do jogador muda a
+  cada compra/descarte (não só no fold, como no Hold'em), então `sua_mao` é
+  reenviada a cada `_broadcast_estado()`, e a tela remota
+  (`mesa_remota_pifpaf_screen.py`) **reconcilia** a nova mão preservando a
+  ordem que o jogador já tiver organizado manualmente (arrastar cartas é só
+  cosmético/local) em vez de substituir a lista inteira a cada atualização.
+  As checagens de "posso bater/mão fechada/bater descartando" são
+  recalculadas do lado do cliente usando as mesmas funções puras de
+  `pifpaf_logic.py` (`pode_bater_mao`) sobre a própria mão + o valor do
+  coringa (que já é público via a carta vira) — evita ida-e-volta de rede a
+  cada carta selecionada, sem duplicar a regra em si (a validação real,
+  que decide o que de fato é aplicado, continua só no host, em
+  `PifPafTableScreen._processar_acao_remota`). `PifPafPlayer` ganhou o mesmo
+  campo `tipo` (`bot`/`humano_local`/`humano_remoto`) que `Player` do
+  Hold'em, com `is_bot` como propriedade de compatibilidade.
+- **Desconexão no Pif Paf**: como não existe "fold" nesse jogo, um jogador
+  remoto desconectado no meio de uma mão continua jogando sozinho via a
+  mesma IA de bots (`pifpaf_bot_ai.py`) até ser eliminado ou a mão acabar —
+  em vez de travar a mesa esperando alguém que não vai mais responder.
+- Testado com automação (rede real via `127.0.0.1`, sem UI): chat
+  cliente→host→todos e host→todos, tanto na `LobbyScreen` quanto dentro das
+  duas mesas; e uma partida real de Pif Paf multiplayer de várias mãos,
+  confirmando que o estado público nunca inclui a mão de ninguém.
+
+## 12. Multiplayer no Dominó
+
+Diferente do Pif Paf (que ganhou rede depois, como retrofit), o Dominó já
+nasceu com multiplayer local — mesmo padrão host-autoritativo, mas mais
+simples de encaixar porque o próprio jogo tem menos "decisões":
+
+- **Sem ação de comprar/passar na rede**: em Dominó, comprar do monte
+  quando não se tem jogada (e passar, se o monte também secou) não são
+  decisões do jogador — são automáticas. Por isso `DominoTableScreen.atualizar()`
+  já resolve isso sozinho (pra bot, humano local ou humano remoto, sem
+  diferença) *antes* de esperar por qualquer ação; a única mensagem que um
+  cliente manda é `{"tipo": "acao_domino", "acao": "jogar", "peca": [a, b],
+  "lado": "esquerda"|"direita"}`. Isso elimina uma classe inteira de mensagens
+  de rede que os outros dois jogos precisam (`comprar`, `passar` nunca
+  existem como tipo de mensagem).
+- **Validação client-side sem duplicar regra**: para destacar quais peças da
+  própria mão são jogáveis agora (e permitir escolher o lado quando uma peça
+  encaixa nas duas pontas), o cliente chama
+  `domino_logic.jogadas_possiveis_em(mao, extremidade_esquerda,
+  extremidade_direita)` — a mesma função pura que `DominoTable` usa
+  internamente, extraída pra ser chamável sem uma mesa de verdade. Isso é
+  seguro porque as extremidades da mesa já são informação pública (todo
+  mundo vê o tabuleiro); a decisão final de aplicar ou não continua só no
+  host (`DominoTableScreen._processar_acao_remota`), que revalida tudo de
+  novo contra o estado real (um cliente com uma cópia desatualizada da mesa
+  — por exemplo, uma jogada que já não é mais válida porque outro jogador
+  moveu antes da mensagem chegar — recebe `erro_acao` e simplesmente não
+  aplica nada; isso é esperado, não é bug, e foi reproduzido e confirmado
+  durante os testes automatizados).
+- **Limite de 4 jogadores por sala**: diferente do limite de 8 usado no
+  Hold'em/Pif Paf, uma sala de Dominó (`MAX_JOGADORES_POR_JOGO` em
+  `multiplayer_screens.py`) aceita no máximo 4, porque o jogo duplo-seis (28
+  peças, 7 por jogador) não sobra peça suficiente pra mais que isso.
+- **Desconexão**: como não existe "fold" nem "mão fechada" em Dominó, um
+  jogador remoto desconectado no meio de uma mão continua jogando sozinho
+  via `domino_bot_ai.escolher_jogada_bot` (mesmo padrão do Pif Paf).
+- Testado com automação (rede real via `127.0.0.1`): limite de 4 jogadores
+  respeitado (5º recusado com "Sala cheia"), chat na `LobbyScreen` e dentro
+  da mesa, e uma partida real de Dominó multiplayer de várias mãos —
+  incluindo o caso de uma jogada rejeitada por estado desatualizado sendo
+  corretamente recusada pelo host sem corromper o jogo.
+
+## 13. Como testar sem precisar de duas máquinas
 
 Durante o desenvolvimento, dá pra validar o essencial rodando **duas
 instâncias do jogo no mesmo PC**: uma cria a sala, a outra entra digitando
@@ -267,5 +359,6 @@ lógica de turnos sem depender de uma segunda máquina/rede Wi-Fi. O teste
 rede local (que não existe em `127.0.0.1` da mesma forma).
 
 ---
-*Implementado (v1, ver seção 10 e `MELHORIAS.md` §7). Ver [GDD.md](GDD.md) e
-[MELHORIAS.md](MELHORIAS.md) para o restante do backlog do projeto.*
+*Implementado (v1 Hold'em + Pif Paf/chat + Dominó, ver seções 10-12 e
+`MELHORIAS.md` §7). Ver [GDD.md](GDD.md) e [MELHORIAS.md](MELHORIAS.md) para
+o restante do backlog do projeto.*

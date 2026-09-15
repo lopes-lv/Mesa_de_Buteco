@@ -9,6 +9,8 @@ from ui_theme import (
     desenhar_kbd, desenhar_badge, obter_fonte,
 )
 from deck import Card
+from domino_theme import desenhar_peca
+from domino_logic import Peca
 from settings import ROTULOS_VELOCIDADE, ROTULOS_BARALHO_SKIN
 
 
@@ -106,6 +108,8 @@ class ModeSelectScreen:
          "simbolo": "♠", "ativo": True},
         {"id": "pifpaf", "titulo": "PIF PAF", "subtitulo": "Compra, descarte e batida",
          "simbolo": "♣", "ativo": True},
+        {"id": "domino", "titulo": "DOMINÓ", "subtitulo": "Bloqueio e compra, 2 a 4 jogadores",
+         "simbolo": "▦", "ativo": True},
         {"id": "inedito", "titulo": "MODO INEDITO", "subtitulo": "Em breve",
          "simbolo": "?", "ativo": False},
     ]
@@ -173,23 +177,23 @@ class ModeSelectScreen:
 class ConfigScreen:
     """Tela de Configuração: escolha da quantidade de bots na mesa."""
 
-    TITULOS_MODO = {"holdem": "TEXAS HOLD'EM", "pifpaf": "PIF PAF"}
+    TITULOS_MODO = {"holdem": "TEXAS HOLD'EM", "pifpaf": "PIF PAF", "domino": "DOMINÓ"}
 
     def __init__(self, app, modo="holdem"):
         self.app = app
         self.modo = modo
-        self.quantidade_bots = 3
+        self.quantidade_bots = 3 if modo != "domino" else 1
         self.min_bots = 1
-        self.max_bots = 7
+        # Dominó (duplo-seis) só comporta 2-4 jogadores no total.
+        self.max_bots = 3 if modo == "domino" else 7
         self.botao_menos = pygame.Rect(0, 0, 52, 52)
         self.botao_mais = pygame.Rect(0, 0, 52, 52)
         self.botao_iniciar = pygame.Rect(0, 0, 360, 64)
         self.botao_voltar = pygame.Rect(0, 0, 150, 48)
         self.carta_preview = Card(14, "espadas")  # Ás de Espadas
 
-        # Multiplayer local só existe para Hold'em no v1 (ver
-        # MULTIPLAYER_PLANO.md, seção 9) - Pif Paf não mostra este toggle.
-        self.suporta_multiplayer = modo == "holdem"
+        # Multiplayer local: Hold'em, Pif Paf e Dominó (ver MULTIPLAYER_PLANO.md).
+        self.suporta_multiplayer = modo in ("holdem", "pifpaf", "domino")
         self.modo_partida = "solo"  # "solo" | "multiplayer"
         self.botao_solo = pygame.Rect(0, 0, 190, 44)
         self.botao_multiplayer = pygame.Rect(0, 0, 190, 44)
@@ -199,6 +203,8 @@ class ConfigScreen:
     def _iniciar_partida(self):
         if self.modo == "pifpaf":
             self.app.iniciar_partida_pifpaf(self.quantidade_bots)
+        elif self.modo == "domino":
+            self.app.iniciar_partida_domino(self.quantidade_bots)
         else:
             self.app.iniciar_partida(self.quantidade_bots)
 
@@ -216,7 +222,7 @@ class ConfigScreen:
                     return
             if self.modo_partida == "multiplayer":
                 if self.botao_criar_sala.collidepoint(evento.pos):
-                    self.app.ir_para_multiplayer_criar()
+                    self.app.ir_para_multiplayer_criar(self.modo)
                 elif self.botao_entrar_sala.collidepoint(evento.pos):
                     self.app.ir_para_multiplayer_entrar()
                 return
@@ -292,16 +298,23 @@ class ConfigScreen:
         desenhar_texto(tela, f"Mesa final: você + {self.quantidade_bots} bot(s) = {self.quantidade_bots + 1} jogadores",
                         painel.centerx, y_bots + 92, tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
-        # ---- Preview de carta (deck único, estilo neobrutalista) ----
+        # ---- Preview do "baralho" (carta ou peça de dominó) ----
         y_deck = y_bots + 140
-        desenhar_texto(tela, "Baralho", painel.centerx, y_deck, tamanho=16,
-                        cor=INK, negrito=True, centralizado=True)
-        largura_carta, altura_carta = 64, 90
-        desenhar_carta(tela, painel.centerx - largura_carta // 2, y_deck + 20,
-                        largura_carta, altura_carta, carta=self.carta_preview)
-        rotulo_skin = ROTULOS_BARALHO_SKIN[self.app.settings.baralho_skin].upper()
-        desenhar_badge(tela, painel.centerx, y_deck + 20 + altura_carta + 22, rotulo_skin,
-                        MINT, cor_texto=INK, tamanho_fonte=11)
+        if self.modo == "domino":
+            desenhar_texto(tela, "Jogo duplo-seis (28 peças)", painel.centerx, y_deck, tamanho=16,
+                            cor=INK, negrito=True, centralizado=True)
+            largura_peca, altura_peca = 50, 90
+            desenhar_peca(tela, painel.centerx - largura_peca // 2, y_deck + 20,
+                          largura_peca, altura_peca, Peca(6, 6), vertical=True)
+        else:
+            desenhar_texto(tela, "Baralho", painel.centerx, y_deck, tamanho=16,
+                            cor=INK, negrito=True, centralizado=True)
+            largura_carta, altura_carta = 64, 90
+            desenhar_carta(tela, painel.centerx - largura_carta // 2, y_deck + 20,
+                            largura_carta, altura_carta, carta=self.carta_preview)
+            rotulo_skin = ROTULOS_BARALHO_SKIN[self.app.settings.baralho_skin].upper()
+            desenhar_badge(tela, painel.centerx, y_deck + 20 + altura_carta + 22, rotulo_skin,
+                            MINT, cor_texto=INK, tamanho_fonte=11)
 
         self.botao_iniciar.center = (largura // 2, painel.bottom + 56)
         desenhar_botao(tela, self.botao_iniciar, "Iniciar Partida",

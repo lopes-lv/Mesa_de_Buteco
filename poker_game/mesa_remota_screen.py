@@ -18,6 +18,7 @@ from ui_theme import (
     desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
     desenhar_kbd, desenhar_glow_de_vez,
 )
+from chat_widget import ChatWidget
 from rede import protocolo
 
 CARTA_OUTRO = (46, 64)
@@ -84,6 +85,8 @@ class MesaRemotaScreen:
         self.mensagem_final = None  # sala encerrada / conexão perdida
         self.vencedor_final = None
 
+        self.chat = ChatWidget(self._enviar_chat)
+
         self.modo_raise = False
         self.valor_raise_atual = 0
         self.arrastando_slider = False
@@ -111,6 +114,9 @@ class MesaRemotaScreen:
 
     def _enviar_acao(self, acao, valor):
         self.sala.enviar({"tipo": protocolo.ACAO, "acao": acao, "valor": valor})
+
+    def _enviar_chat(self, texto):
+        self.sala.enviar({"tipo": protocolo.CHAT, "texto": texto})
 
     def _sair(self):
         self.sala.fechar()
@@ -141,12 +147,17 @@ class MesaRemotaScreen:
                 self.tempo_erro_acao = 3.0
             elif tipo == protocolo.FIM_DE_JOGO:
                 self.vencedor_final = msg.get("vencedor")
+            elif tipo == protocolo.CHAT:
+                self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
 
         if self.vencedor_final is None and self.sala.status in ("sala_encerrada", "desconectado"):
             self.mensagem_final = self.sala.erro or "Conexão com o anfitrião perdida."
 
     # ---------------------------------------------------------------- Eventos
     def tratar_evento(self, evento):
+        if self.chat.tratar_evento(evento):
+            return
+
         if self.vencedor_final is not None or self.mensagem_final is not None:
             if evento.type == pygame.MOUSEBUTTONDOWN:
                 self._sair()
@@ -248,6 +259,7 @@ class MesaRemotaScreen:
         self._desenhar_jogadores(tela, mesa_rect, largura, altura)
         self._desenhar_historico(tela, largura, altura)
         self._desenhar_botao_sair(tela)
+        self.chat.desenhar(tela, largura, altura)
 
         if self.mensagem_final is not None:
             self._desenhar_mensagem_final(tela, largura, altura)

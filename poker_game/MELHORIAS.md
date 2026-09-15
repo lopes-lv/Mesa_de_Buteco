@@ -30,6 +30,13 @@ Este documento armazena todas as ideias, melhorias e novas funcionalidades plane
   [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md) (`pifpaf_logic.py`, `pifpaf_bot_ai.py`,
   `pifpaf_screen.py`). A regra da "a louca" ficou de fora desta primeira
   versão (backlog).
+- [x] Implementar o modo de jogo **Dominó** — bloqueio/compra livre-pra-todos
+  (sem duplas), duplo-seis, 2 a 4 jogadores (`domino_logic.py`,
+  `domino_bot_ai.py`, `domino_theme.py`, `domino_screen.py`). Comprar/passar
+  não são ações do jogador — acontecem sozinhos quando não há jogada
+  possível; o único gesto é clicar numa peça jogável e, se ela encaixar nas
+  duas pontas, escolher qual lado. Já nasceu com multiplayer local (ver
+  seção 7), diferente do Pif Paf que começou solo.
 - [ ] Implementar e projetar um modo de jogo inédito/diferente — já existe
   um card "EM BREVE" reservado para ele na tela de escolha de modo.
 - [x] Pif Paf: adicionada a regra tradicional de **"Mão Fechada"** (bater
@@ -67,8 +74,7 @@ Este documento armazena todas as ideias, melhorias e novas funcionalidades plane
   remotas), clientes rodam `MesaRemotaScreen` (`mesa_remota_screen.py`) e só
   recebem snapshots + a própria mão, nunca as cartas alheias. Telas de sala
   em `multiplayer_screens.py` (`CriarSalaScreen`, `EntrarSalaScreen`,
-  `LobbyScreen`), acessíveis por `ConfigScreen` → "Multiplayer Local"
-  (só no modo Hold'em, conforme o escopo do v1).
+  `LobbyScreen`), acessíveis por `ConfigScreen` → "Multiplayer Local".
 - [x] Robustez básica (Fase 6 do plano): sala cheia recusa entrada,
   desconexão no meio de uma mão vira fold automático (`sala_rede.desconectados`,
   status "Desconectado" no painel do jogador), host fechar a sala avisa os
@@ -77,12 +83,39 @@ Este documento armazena todas as ideias, melhorias e novas funcionalidades plane
   handshake completo, sala cheia, desconexão, broadcast de estado, e uma
   partida real de 2+ mãos entre um host local e um cliente de rede,
   confirmando que o snapshot público nunca inclui as cartas de ninguém.
-- [ ] Pendente (fora do escopo do v1, ver seção 9 do plano): teste manual
-  com duas máquinas físicas na mesma Wi-Fi (só validado via `127.0.0.1` e
+- [x] **Código de sala simplificado**: de 5 caracteres com prefixo
+  (`PIF-XXXXX`) para **3 letras + 1 número** (ex.: `KTR4`).
+- [x] **Chat de texto** em toda sessão multiplayer (lobby + as duas mesas):
+  aba no canto esquerdo da tela (`chat_widget.py`, `ChatWidget`), relay
+  automático na camada de rede (`AnfitriaoSala`, tipo `CHAT`) — nenhuma tela
+  duplica a lógica de "quem mandou pra quem". Ver
+  [MULTIPLAYER_PLANO.md §11](MULTIPLAYER_PLANO.md#11-pif-paf-multiplayer-e-chat-de-texto).
+- [x] **Multiplayer no Pif Paf**: mesmo host-autoritativo do Hold'em, com
+  `PifPafPlayer.tipo` novo e `mesa_remota_pifpaf_screen.py`. Particularidade
+  resolvida: a mão muda a cada compra/descarte (não só no fold como no
+  Hold'em), então a tela remota reconcilia a mão nova preservando a
+  organização manual do jogador em vez de substituir a lista inteira; um
+  jogador remoto desconectado continua jogando sozinho via a IA de bots
+  (não existe "fold" no Pif Paf para cobrir esse caso). Ver
+  [MULTIPLAYER_PLANO.md §11](MULTIPLAYER_PLANO.md#11-pif-paf-multiplayer-e-chat-de-texto)
+  para os detalhes técnicos.
+- [x] **Multiplayer no Dominó**: já nasceu com rede (não foi retrofit como
+  Pif Paf) — `DominoPlayer.tipo`, `domino_screen.py` (host) e
+  `mesa_remota_domino_screen.py` (cliente). Como comprar/passar são
+  automáticos (não são decisão de ninguém), o protocolo só precisa de uma
+  ação de rede (`jogar`); a checagem de "essa peça é jogável?" roda igual
+  dos dois lados via `domino_logic.jogadas_possiveis_em()`, uma função pura
+  sobre a própria mão + as extremidades da mesa (públicas). Sala limitada a
+  4 jogadores (`MAX_JOGADORES_POR_JOGO` em `multiplayer_screens.py`), já que
+  o jogo duplo-seis não comporta mais que isso. Testado com automação
+  (rede real): limite de 4 respeitado (5º recusado), chat na mesa, e uma
+  partida real de 3+ mãos sem vazar a mão de ninguém no estado público.
+- [ ] Pendente (fora do escopo, ver seção 9 do plano): teste manual com
+  duas máquinas físicas na mesma Wi-Fi (só validado via `127.0.0.1` e
   automação até agora — falta confirmar o aviso de firewall do Windows e a
-  descoberta UDP numa LAN real); reconexão após queda; Pif Paf multiplayer;
-  revelar as cartas de todos no showdown para os clientes remotos (hoje só o
-  host vê as mãos reveladas — os clientes só veem o texto do resultado).
+  descoberta UDP numa LAN real); reconexão após queda; chat de voz; revelar
+  as cartas de todos no showdown/liquidação para os clientes remotos (hoje
+  só o host vê as mãos reveladas — os clientes só veem o texto do resultado).
 
 ## 8. Documentação do Projeto
 - [x] Escrever um **GDD (Game Design Document)** para consolidar todas as mecânicas, regras e visão do jogo em um único lugar (`GDD.md`).

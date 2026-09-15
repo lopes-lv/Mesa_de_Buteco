@@ -24,11 +24,14 @@ LOBBY_ATUALIZADO = "lobby_atualizado"  # host -> todos: {jogadores[]}
 INICIAR_PARTIDA = "iniciar_partida"    # host -> todos: {}
 ESTADO = "estado"                 # host -> todos: snapshot publico da mesa
 SUA_MAO = "sua_mao"               # host -> 1 cliente: {cartas: [...]}
-ACAO = "acao"                     # cliente -> host: {acao, valor}
+ACAO = "acao"                     # cliente -> host: {acao, valor} (Hold'em: fold/check/call/raise)
+ACAO_PIFPAF = "acao_pifpaf"       # cliente -> host: {acao, carta?} (comprar_monte/comprar_descarte/bater/bater_mao_fechada/descartar)
+ACAO_DOMINO = "acao_domino"       # cliente -> host: {acao: "jogar", peca: [a,b], lado} - comprar/passar são automáticos, não vêm do cliente
 ERRO_ACAO = "erro_acao"           # host -> 1 cliente: {motivo}
 SAIR = "sair"                     # qualquer -> outro lado
 SALA_ENCERRADA = "sala_encerrada"      # host -> todos: {motivo}
 FIM_DE_JOGO = "fim_de_jogo"       # host -> todos: {vencedor}
+CHAT = "chat"                     # cliente -> host: {texto} | host -> todos: {remetente, texto}
 
 
 def empacotar(mensagem: dict) -> bytes:

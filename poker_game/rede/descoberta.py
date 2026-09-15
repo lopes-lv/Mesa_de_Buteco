@@ -9,16 +9,20 @@ import threading
 
 from .protocolo import PORTA_UDP_DESCOBERTA
 
-# Sem caracteres ambiguos (sem O/0, I/1) - facil de ditar/digitar.
-ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+# Sem caracteres ambiguos (sem O/0, I/1) - facil de ditar/digitar em voz alta.
+LETRAS_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+DIGITOS_CODIGO = "23456789"
 
 PROCURAR_SALA = "procurar_sala"
 SALA_ENCONTRADA = "sala_encontrada"
 
 
-def gerar_codigo(tamanho=5):
-    letras = "".join(random.choices(ALFABETO_CODIGO, k=tamanho))
-    return f"PIF-{letras}"
+def gerar_codigo():
+    """Código curto: 3 letras + 1 número (ex.: `KTR4`) - simples de ditar e
+    digitar entre pessoas na mesma sala física."""
+    letras = "".join(random.choices(LETRAS_CODIGO, k=3))
+    numero = random.choice(DIGITOS_CODIGO)
+    return f"{letras}{numero}"
 
 
 class ServidorDescoberta(threading.Thread):

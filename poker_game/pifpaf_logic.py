@@ -17,6 +17,12 @@ STACK_INICIAL = 1500
 LIMITE_TURNOS_SEM_BATIDA = 200
 JOKERS_POR_BARALHO_DUPLO = 4  # 2 por copia de 52, baralho duplo = 4
 
+# Origem da acao de um jogador (mesmo padrao de game_logic.py, ver
+# MULTIPLAYER_PLANO.md secao 7): PifPafTable nunca olha para este campo.
+TIPO_BOT = "bot"
+TIPO_HUMANO_LOCAL = "humano_local"
+TIPO_HUMANO_REMOTO = "humano_remoto"
+
 
 def criar_baralho_duplo(usar_joker=False):
     """Dois baralhos de 52 cartas combinados (104 cartas). Com `usar_joker`,
@@ -207,13 +213,17 @@ def calcular_pontos_soltos(mao, coringa_valor):
 
 # ---------------------------------------------------------------- Jogador
 class PifPafPlayer:
-    def __init__(self, id_jogador, nome, stack=STACK_INICIAL, is_bot=True):
+    def __init__(self, id_jogador, nome, stack=STACK_INICIAL, tipo=TIPO_BOT):
         self.id = id_jogador
         self.nome = nome
         self.stack = stack
-        self.is_bot = is_bot
+        self.tipo = tipo
         self.mao = []
         self.eliminado = stack <= 0
+
+    @property
+    def is_bot(self):
+        return self.tipo == TIPO_BOT
 
     def reset_para_mao(self):
         self.mao = []

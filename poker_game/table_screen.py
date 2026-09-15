@@ -21,6 +21,7 @@ from ui_theme import (
 )
 from bot_ai import decidir_acao_bot
 from game_logic import TIPO_HUMANO_REMOTO
+from chat_widget import ChatWidget
 from rede import protocolo
 
 ANIM_CROUPIER_DURACAO = 0.9
@@ -76,7 +77,13 @@ class TableScreen:
         self.anim_cropie_inicio = None  # instante (tempo_decorrido) em que a última distribuição começou
 
         self.historico = deque(maxlen=HIST_MAX_LINHAS)
+        self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
         self._iniciar_mao()
+
+    def _enviar_chat_host(self, texto):
+        nome = self.sala_rede.nome_anfitriao
+        self.chat.adicionar_mensagem(nome, texto)
+        self.sala_rede.enviar_para_todos({"tipo": protocolo.CHAT, "remetente": nome, "texto": texto})
 
     # ---------------------------------------------------------------- Histórico
     def _registrar(self, texto, cor=TEXT_MUTED):
@@ -113,6 +120,9 @@ class TableScreen:
 
     # ---------------------------------------------------------------- Eventos
     def tratar_evento(self, evento):
+        if self.chat is not None and self.chat.tratar_evento(evento):
+            return
+
         if self.app.jogo_finalizado:
             if evento.type == pygame.MOUSEBUTTONDOWN:
                 self._sair_para_menu()
@@ -276,8 +286,11 @@ class TableScreen:
                 jogador_id, msg = self.sala_rede.mensagens_entrantes.get_nowait()
             except queue.Empty:
                 break
-            if msg.get("tipo") == protocolo.ACAO:
+            tipo = msg.get("tipo")
+            if tipo == protocolo.ACAO:
                 self._processar_acao_remota(jogador_id, msg)
+            elif tipo == protocolo.CHAT:
+                self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
 
     def _processar_acao_remota(self, jogador_id, msg):
         rodada = self.table.rodada_atual
@@ -432,6 +445,9 @@ class TableScreen:
         self._desenhar_marcador_dealer(tela, mesa_rect)
         self._desenhar_jogadores(tela, mesa_rect, largura, altura)
         self._desenhar_historico(tela, largura, altura)
+
+        if self.chat is not None:
+            self.chat.desenhar(tela, largura, altura)
 
         if self.app.jogo_finalizado:
             self._desenhar_tela_final(tela, largura, altura)

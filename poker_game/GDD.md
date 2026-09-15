@@ -29,7 +29,25 @@ O jogo suportará diferentes modalidades de jogos de baralho.
 - **Economia/Fichas:** Mesmo esquema de "torneio até sobrar 1 jogador" do
   Hold'em, reaproveitando o valor inicial de fichas de `game_logic.py`.
 
-### 2.3 Modo Inédito Original
+### 2.3 Dominó
+- **Status:** Implementado (`domino_logic.py`, `domino_bot_ai.py`, `domino_screen.py`)
+- **Regras/Detalhes:** Variante bloqueio/compra, livre-pra-todos (sem duplas),
+  jogo duplo-seis (28 peças), 2 a 4 jogadores. Cada jogador recebe 7 peças;
+  quem não consegue encaixar numa das duas extremidades da mesa compra do
+  monte até conseguir jogar ou o monte esvaziar — isso é automático, não é
+  uma decisão do jogador (só clicar numa peça jogável é ação de verdade).
+  A mão termina quando alguém "bate" (joga sua última peça) ou quando o jogo
+  bloqueia (ninguém consegue jogar e o monte já secou); no bloqueio, vence
+  quem tiver menos pontos nas peças da mão (empate divide o pote).
+- **Economia/Fichas:** Mesmo esquema de "torneio até sobrar 1 jogador" dos
+  outros modos. Quem não bate/vence paga a soma dos pontos (soma dos dois
+  lados de cada peça) das peças que sobraram na própria mão.
+- **Multiplayer local:** suportado desde o lançamento do modo (diferente do
+  Pif Paf, que começou solo) — ver `MULTIPLAYER_PLANO.md`. Limite de 4
+  jogadores por sala (`MAX_JOGADORES_POR_JOGO` em `multiplayer_screens.py`),
+  diferente do limite de 8 do Hold'em/Pif Paf.
+
+### 2.4 Modo Inédito Original
 - **Status:** Planejado
 - **Conceito:** [A definir: Qual será a mecânica única desse modo?]
 
