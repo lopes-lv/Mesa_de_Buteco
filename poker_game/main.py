@@ -9,9 +9,14 @@ Compile com PyInstaller (ver README.md) para gerar o .exe no Windows.
 import sys
 import pygame
 
-from game_logic import Table, Player
-from screens import MenuScreen, ConfigScreen
+from game_logic import Table, Player, TIPO_BOT, TIPO_HUMANO_LOCAL, TIPO_HUMANO_REMOTO
+from screens import MenuScreen, ModeSelectScreen, ConfigScreen, SettingsScreen
 from table_screen import TableScreen
+from pifpaf_logic import PifPafPlayer, PifPafTable
+from pifpaf_screen import PifPafTableScreen
+from settings import Settings
+from multiplayer_screens import CriarSalaScreen, EntrarSalaScreen, LobbyScreen
+import ui_theme
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
@@ -29,6 +34,7 @@ class App:
 
         self.jogo_finalizado = False
         self.nome_vencedor = None
+        self.settings = Settings()
 
         self.tela_atual = MenuScreen(self)
 
@@ -37,21 +43,96 @@ class App:
         self.jogo_finalizado = False
         self.tela_atual = MenuScreen(self)
 
-    def ir_para_config(self):
-        self.tela_atual = ConfigScreen(self)
+    def ir_para_escolha_modo(self):
+        self.tela_atual = ModeSelectScreen(self)
+
+    def ir_para_config(self, modo="holdem"):
+        self.tela_atual = ConfigScreen(self, modo)
+
+    def ir_para_ajustes(self):
+        self.tela_atual = SettingsScreen(self)
+
+    def ir_para_multiplayer_criar(self):
+        self.tela_atual = CriarSalaScreen(self)
+
+    def ir_para_multiplayer_entrar(self):
+        self.tela_atual = EntrarSalaScreen(self)
+
+    def ir_para_lobby_host(self, sala_rede):
+        self.tela_atual = LobbyScreen(self, sala_rede=sala_rede)
+
+    def ir_para_lobby_cliente(self, sala_cliente):
+        self.tela_atual = LobbyScreen(self, sala_cliente=sala_cliente)
 
     def encerrar(self):
         self.rodando = False
 
+    def alternar_tela_cheia(self):
+        self.settings.tela_cheia = not self.settings.tela_cheia
+        if self.settings.tela_cheia:
+            self.tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        else:
+            self.tela = pygame.display.set_mode((LARGURA_INICIAL, ALTURA_INICIAL), pygame.RESIZABLE)
+
     def iniciar_partida(self, quantidade_bots):
-        jogadores = [Player(id_jogador=0, nome="Você", is_bot=False)]
+        stack_inicial = self.settings.fichas_iniciais
+        jogadores = [Player(id_jogador=0, nome="Você", stack=stack_inicial, tipo=TIPO_HUMANO_LOCAL)]
         for i in range(quantidade_bots):
             nome = NOMES_BOTS[i % len(NOMES_BOTS)]
-            jogadores.append(Player(id_jogador=i + 1, nome=nome, is_bot=True))
+            jogadores.append(Player(id_jogador=i + 1, nome=nome, stack=stack_inicial, tipo=TIPO_BOT))
 
         table = Table(jogadores)
         self.jogo_finalizado = False
         self.tela_atual = TableScreen(self, table)
+
+    def iniciar_partida_multiplayer_host(self, sala_rede, nomes_participantes, completar_com_bots):
+        """
+        `nomes_participantes` é a lista de dicts do lobby (id, nome,
+        anfitriao) já com o host na posição 0. Vagas restantes viram bots
+        (reaproveitando NOMES_BOTS) se `completar_com_bots` for True.
+        """
+        stack_inicial = self.settings.fichas_iniciais
+        jogadores = []
+        for participante in nomes_participantes:
+            tipo = TIPO_HUMANO_LOCAL if participante["id"] == 0 else TIPO_HUMANO_REMOTO
+            jogadores.append(Player(id_jogador=participante["id"], nome=participante["nome"],
+                                     stack=stack_inicial, tipo=tipo))
+
+        if completar_com_bots:
+            ids_usados = {j.id for j in jogadores}
+            proximo_id = max(ids_usados) + 1
+            vagas = max(0, 8 - len(jogadores))
+            for i in range(vagas):
+                nome = NOMES_BOTS[i % len(NOMES_BOTS)]
+                jogadores.append(Player(id_jogador=proximo_id + i, nome=nome,
+                                         stack=stack_inicial, tipo=TIPO_BOT))
+
+        table = Table(jogadores)
+        self.jogo_finalizado = False
+        sala_rede.em_jogo = True
+        # Manda "iniciar_partida" ANTES de criar a TableScreen: ela já
+        # transmite o primeiro "estado"/"sua_mao" no construtor (via
+        # _iniciar_mao), e LobbyScreen (do lado do cliente) descarta
+        # qualquer mensagem que não seja "iniciar_partida" enquanto espera -
+        # se a ordem fosse invertida, o snapshot inicial da mão se perderia.
+        sala_rede.enviar_para_todos({"tipo": "iniciar_partida"})
+        self.tela_atual = TableScreen(self, table, sala_rede=sala_rede)
+
+    def iniciar_partida_multiplayer_cliente(self, sala_cliente):
+        from mesa_remota_screen import MesaRemotaScreen
+        self.jogo_finalizado = False
+        self.tela_atual = MesaRemotaScreen(self, sala_cliente)
+
+    def iniciar_partida_pifpaf(self, quantidade_bots):
+        stack_inicial = self.settings.fichas_iniciais
+        jogadores = [PifPafPlayer(id_jogador=0, nome="Você", stack=stack_inicial, is_bot=False)]
+        for i in range(quantidade_bots):
+            nome = NOMES_BOTS[i % len(NOMES_BOTS)]
+            jogadores.append(PifPafPlayer(id_jogador=i + 1, nome=nome, stack=stack_inicial, is_bot=True))
+
+        mesa = PifPafTable(jogadores, usar_joker=self.settings.usar_joker_pifpaf)
+        self.jogo_finalizado = False
+        self.tela_atual = PifPafTableScreen(self, mesa)
 
     def finalizar_jogo(self, nome_vencedor):
         self.jogo_finalizado = True
@@ -63,6 +144,7 @@ class App:
             dt = self.clock.tick(FPS) / 1000.0
             self._processar_eventos()
             self.tela_atual.atualizar(dt)
+            ui_theme.set_estilo_baralho(self.settings.baralho_skin)
             self.tela_atual.desenhar(self.tela)
             pygame.display.flip()
         pygame.quit()

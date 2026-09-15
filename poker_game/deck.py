@@ -6,6 +6,11 @@ import random
 NAIPES = ["copas", "ouros", "paus", "espadas"]
 VALORES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]  # 11=J, 12=Q, 13=K, 14=A
 
+# Joker impresso (Pif Paf, opcional) - naipe/valor fora do range normal,
+# nunca gerado pelo baralho do Hold'em (Deck.__init__ so usa NAIPES/VALORES).
+NAIPE_CORINGA = "coringa"
+VALOR_CORINGA = 0
+
 VALOR_TEXTO = {
     2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9",
     10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"
@@ -23,7 +28,8 @@ NAIPE_COR = {
     "copas": (200, 40, 40),
     "ouros": (200, 40, 40),
     "paus": (25, 25, 25),
-    "espadas": (25, 25, 25)
+    "espadas": (25, 25, 25),
+    "coringa": (167, 139, 250)
 }
 
 
@@ -36,10 +42,14 @@ class Card:
 
     @property
     def texto(self):
+        if self.naipe == NAIPE_CORINGA:
+            return "JK"
         return VALOR_TEXTO[self.valor]
 
     @property
     def simbolo_naipe(self):
+        if self.naipe == NAIPE_CORINGA:
+            return "★"  # estrela
         return NAIPE_SIMBOLO[self.naipe]
 
     @property
@@ -50,6 +60,8 @@ class Card:
         return f"{self.texto}{self.simbolo_naipe}"
 
     def __eq__(self, other):
+        if not isinstance(other, Card):
+            return NotImplemented
         return self.valor == other.valor and self.naipe == other.naipe
 
     def __hash__(self):

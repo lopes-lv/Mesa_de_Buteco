@@ -19,14 +19,25 @@ ESTRUTURA_BLINDS = [
 MAOS_POR_NIVEL = 5
 STACK_INICIAL = 1500
 
+# Origem da ação de um jogador (ver MULTIPLAYER_PLANO.md, seção 7): o motor
+# de jogo (BettingRound/Table) nunca olha para este campo — só quem decide a
+# origem da próxima ação (bot_ai, mouse local, ou fila de rede) usa `tipo`.
+TIPO_BOT = "bot"
+TIPO_HUMANO_LOCAL = "humano_local"
+TIPO_HUMANO_REMOTO = "humano_remoto"
+
 
 class Player:
-    def __init__(self, id_jogador, nome, stack=STACK_INICIAL, is_bot=True):
+    def __init__(self, id_jogador, nome, stack=STACK_INICIAL, tipo=TIPO_BOT):
         self.id = id_jogador
         self.nome = nome
         self.stack = stack
-        self.is_bot = is_bot
+        self.tipo = tipo
         self.reset_para_mao()
+
+    @property
+    def is_bot(self):
+        return self.tipo == TIPO_BOT
 
     def reset_para_mao(self):
         self.mao = []

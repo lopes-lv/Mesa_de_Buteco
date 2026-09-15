@@ -16,8 +16,18 @@ O jogo suportará diferentes modalidades de jogos de baralho.
 - **Economia/Fichas:** O jogador inicia a sessão com 2.000 (2k) fichas. Se falir, perde a partida atual. Ao iniciar uma nova partida (sair e entrar no modo), as fichas são reiniciadas para 2.000.
 
 ### 2.2 Pif Paf
-- **Status:** Planejado
-- **Regras/Detalhes:** [A definir: Quantas cartas na mão? Tem curinga? Quais as regras de batida?]
+- **Status:** Implementado (ver [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md) para o guia completo)
+- **Regras/Detalhes:** Baralho duplo (104 cartas). Cada jogador recebe 9 cartas.
+  Existe curinga: a carta de valor seguinte à "vira" (virada do monte antes da
+  distribuição) substitui qualquer carta em trincas (3-4 cartas, mesmo valor,
+  naipes diferentes) ou sequências (3+ cartas seguidas do mesmo naipe). No
+  turno, o jogador compra 1 carta (do monte ou do topo do descarte) e então
+  bate (zera a mão em combinações válidas) ou descarta 1 carta. Quem não bate
+  paga em fichas os pontos das cartas que sobraram soltas; quem bate embolsa
+  o pote. A regra da "a louca" (bater fora da vez com o descarte alheio) não
+  foi implementada nesta versão.
+- **Economia/Fichas:** Mesmo esquema de "torneio até sobrar 1 jogador" do
+  Hold'em, reaproveitando o valor inicial de fichas de `game_logic.py`.
 
 ### 2.3 Modo Inédito Original
 - **Status:** Planejado

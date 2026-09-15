@@ -9,6 +9,7 @@ Responsável por:
  - Histórico de ações da rodada, num painel fixo no canto inferior direito
 """
 import math
+import queue
 from collections import deque
 
 import pygame
@@ -16,15 +17,22 @@ from ui_theme import (
     BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
-    desenhar_kbd, desenhar_glow_de_vez,
+    desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie,
 )
 from bot_ai import decidir_acao_bot
+from game_logic import TIPO_HUMANO_REMOTO
+from rede import protocolo
 
-DELAY_BOT_SEGUNDOS = 0.9
+ANIM_CROUPIER_DURACAO = 0.9
 
 CARTA_BOT = (46, 64)
 CARTA_COMUNITARIA = (64, 90)
 CARTA_HUMANO = (100, 140)
+
+# As cartas do jogador humano são desenhadas um pouco acima do assento para
+# não ficarem atrás dos botões de ação (Fold/Call/Raise), que ficam perto do
+# rodapé da tela.
+DESLOCAMENTO_CARTAS_HUMANO = 40
 
 PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
 
@@ -40,10 +48,11 @@ def _carta_str(carta):
 
 
 class TableScreen:
-    def __init__(self, app, table):
+    def __init__(self, app, table, sala_rede=None):
         self.app = app
         self.table = table
         self.id_humano = table.jogadores[0].id
+        self.sala_rede = sala_rede  # AnfitriaoSala, só quando é uma mesa multiplayer (host)
 
         self.botao_fold = pygame.Rect(0, 0, 172, 68)
         self.botao_call = pygame.Rect(0, 0, 172, 68)
@@ -64,6 +73,8 @@ class TableScreen:
         self.resultados_showdown = None
         self.mensagem_vencedor_por_fold = None
 
+        self.anim_cropie_inicio = None  # instante (tempo_decorrido) em que a última distribuição começou
+
         self.historico = deque(maxlen=HIST_MAX_LINHAS)
         self._iniciar_mao()
 
@@ -75,6 +86,12 @@ class TableScreen:
         self.table.iniciar_nova_mao()
         self.historico.clear()
         self._registrar(f"— Mão #{self.table.mao_numero} —", INK)
+        self._iniciar_animacao_cropie()
+        self._enviar_maos_privadas()
+        self._broadcast_estado()
+
+    def _iniciar_animacao_cropie(self):
+        self.anim_cropie_inicio = self.tempo_decorrido
 
     def _registrar_acao(self, jogador, acao, valor):
         rotulos = {"fold": "Fold", "check": "Check", "call": "Call", "raise": f"Raise ({valor})"}
@@ -98,12 +115,12 @@ class TableScreen:
     def tratar_evento(self, evento):
         if self.app.jogo_finalizado:
             if evento.type == pygame.MOUSEBUTTONDOWN:
-                self.app.ir_para_menu()
+                self._sair_para_menu()
             return
 
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_sair.collidepoint(evento.pos):
-                self.app.ir_para_menu()
+                self._sair_para_menu()
                 return
 
         # Resultado da mão (showdown ou vitória por fold): só avança quando
@@ -190,13 +207,109 @@ class TableScreen:
         valor_bruto = int(maximo * proporcao)
         self.valor_raise_atual = max(min_raise, valor_bruto)
 
+    def _aplicar_acao_jogador(self, jogador, acao, valor_raise):
+        self.table.rodada_atual.aplicar_acao(jogador, acao, valor_raise)
+        self._registrar_acao(jogador, acao, valor_raise)
+
     def _aplicar_acao_humano(self, acao, valor_raise):
         humano = self._jogador(self.id_humano)
-        self.table.rodada_atual.aplicar_acao(humano, acao, valor_raise)
-        self._registrar_acao(humano, acao, valor_raise)
+        self._aplicar_acao_jogador(humano, acao, valor_raise)
+        self._broadcast_estado()
 
     def _jogador(self, id_jogador):
         return next(j for j in self.table.jogadores if j.id == id_jogador)
+
+    def _jogador_por_id(self, id_jogador):
+        return next((j for j in self.table.jogadores if j.id == id_jogador), None)
+
+    # ---------------------------------------------------------------- Rede (host)
+    def _enviar_maos_privadas(self):
+        if self.sala_rede is None:
+            return
+        for jogador in self.table.jogadores:
+            if jogador.tipo == TIPO_HUMANO_REMOTO and not jogador.eliminado:
+                self.sala_rede.enviar_para(jogador.id, {
+                    "tipo": protocolo.SUA_MAO,
+                    "cartas": [[carta.valor, carta.naipe] for carta in jogador.mao],
+                })
+
+    def _broadcast_estado(self):
+        if self.sala_rede is None:
+            return
+        self.sala_rede.enviar_para_todos(self._serializar_estado())
+
+    def _serializar_estado(self):
+        rodada = self.table.rodada_atual
+        jogador_da_vez = rodada.jogador_da_vez() if rodada else None
+        sb, bb = self.table.blinds_atuais()
+
+        jogadores = []
+        for j in self.table.jogadores:
+            jogadores.append({
+                "id": j.id, "nome": j.nome, "stack": j.stack,
+                "aposta_rodada": j.aposta_rodada, "foldou": j.foldou,
+                "all_in": j.all_in, "eliminado": j.eliminado,
+                "desconectado": bool(self.sala_rede and j.id in self.sala_rede.desconectados),
+            })
+
+        resultado = self.resultados_showdown or self.mensagem_vencedor_por_fold
+
+        return {
+            "tipo": protocolo.ESTADO,
+            "mao_numero": self.table.mao_numero,
+            "blinds": [sb, bb],
+            "estagio": self.table.estagio,
+            "comunitarias": [[c.valor, c.naipe] for c in self.table.comunitarias],
+            "pote": sum(j.total_apostado_mao for j in self.table.jogadores),
+            "aposta_alvo": rodada.aposta_alvo if rodada else 0,
+            "ultimo_raise_valor": rodada.ultimo_raise_valor if rodada else bb,
+            "dealer_id": self.table.jogadores[self.table.dealer_idx].id,
+            "jogador_da_vez_id": jogador_da_vez.id if jogador_da_vez else None,
+            "jogadores": jogadores,
+            "historico": [texto for texto, _cor in list(self.historico)],
+            "resultado": resultado,
+        }
+
+    def _drenar_mensagens_rede(self):
+        while True:
+            try:
+                jogador_id, msg = self.sala_rede.mensagens_entrantes.get_nowait()
+            except queue.Empty:
+                break
+            if msg.get("tipo") == protocolo.ACAO:
+                self._processar_acao_remota(jogador_id, msg)
+
+    def _processar_acao_remota(self, jogador_id, msg):
+        rodada = self.table.rodada_atual
+        jogador_da_vez = rodada.jogador_da_vez() if rodada else None
+        jogador = self._jogador_por_id(jogador_id)
+
+        erro = None
+        acao = msg.get("acao")
+        valor = msg.get("valor", 0)
+
+        if jogador is None:
+            erro = "Jogador desconhecido"
+        elif jogador_da_vez is None or jogador_da_vez.id != jogador_id:
+            erro = "Não é a sua vez"
+        elif acao not in ("fold", "check", "call", "raise"):
+            erro = "Ação inválida"
+        else:
+            a_pagar = max(0, rodada.aposta_alvo - jogador.aposta_rodada)
+            if acao == "check" and a_pagar > 0:
+                erro = "Não é possível dar check havendo aposta a pagar"
+            elif acao == "raise":
+                if not isinstance(valor, (int, float)) or valor <= 0:
+                    erro = "Valor de raise inválido"
+                elif valor > jogador.stack - a_pagar:
+                    erro = "Valor de raise maior que seu stack disponível"
+
+        if erro:
+            self.sala_rede.enviar_para(jogador_id, {"tipo": protocolo.ERRO_ACAO, "motivo": erro})
+            return
+
+        self._aplicar_acao_jogador(jogador, acao, int(valor) if acao == "raise" else 0)
+        self._broadcast_estado()
 
     def _posicao_relativa(self, jogador):
         """Retorna quantos jogadores ativos agem depois deste bot."""
@@ -225,6 +338,9 @@ class TableScreen:
         if self.app.jogo_finalizado:
             return
 
+        if self.sala_rede is not None:
+            self._drenar_mensagens_rede()
+
         # Enquanto o resultado da mão estiver na tela, aguarda o clique em
         # "Continuar" (ver tratar_evento) em vez de avançar sozinho.
         if self.resultados_showdown is not None or self.mensagem_vencedor_por_fold is not None:
@@ -238,36 +354,50 @@ class TableScreen:
             resultados = self.table.processar_showdown()
             self.table.marcar_eliminados()
             self.mensagem_vencedor_por_fold = resultados
+            self._broadcast_estado()
             return
 
         if rodada.rodada_terminou():
             self.table.avancar_estagio()
             self._registrar_estagio(self.table.estagio)
+            if self.table.estagio in ("flop", "turn", "river"):
+                self._iniciar_animacao_cropie()
             if self.table.estagio == "showdown":
                 self.resultados_showdown = self.table.processar_showdown()
                 self.table.marcar_eliminados()
+            self._broadcast_estado()
             return
 
         jogador_da_vez = rodada.jogador_da_vez()
         if jogador_da_vez is None:
             return
 
-        if jogador_da_vez.is_bot:
+        desconectado = (
+            self.sala_rede is not None
+            and jogador_da_vez.tipo == TIPO_HUMANO_REMOTO
+            and jogador_da_vez.id in self.sala_rede.desconectados
+        )
+
+        if jogador_da_vez.is_bot or desconectado:
             self.timer_bot += dt
-            if self.timer_bot >= DELAY_BOT_SEGUNDOS:
+            if self.timer_bot >= self.app.settings.delay_bot():
                 self.timer_bot = 0.0
-                sb, bb = self.table.blinds_atuais()
-                acao, valor = decidir_acao_bot(
-                    jogador_da_vez, self.table.estagio, self.table.comunitarias,
-                    rodada.aposta_alvo, bb,
-                    pote=sum(j.total_apostado_mao for j in self.table.jogadores),
-                    oponentes_ativos=len(rodada.jogadores_ativos_na_mao()) - 1,
-                    posicao=self._posicao_relativa(jogador_da_vez),
-                    jogadores_agiram=len(rodada.jogadores_que_agiram),
-                    ultimo_raise=rodada.ultimo_raise_valor
-                )
+                if desconectado:
+                    acao, valor = "fold", 0
+                else:
+                    sb, bb = self.table.blinds_atuais()
+                    acao, valor = decidir_acao_bot(
+                        jogador_da_vez, self.table.estagio, self.table.comunitarias,
+                        rodada.aposta_alvo, bb,
+                        pote=sum(j.total_apostado_mao for j in self.table.jogadores),
+                        oponentes_ativos=len(rodada.jogadores_ativos_na_mao()) - 1,
+                        posicao=self._posicao_relativa(jogador_da_vez),
+                        jogadores_agiram=len(rodada.jogadores_que_agiram),
+                        ultimo_raise=rodada.ultimo_raise_valor
+                    )
                 rodada.aplicar_acao(jogador_da_vez, acao, valor)
                 self._registrar_acao(jogador_da_vez, acao, valor)
+                self._broadcast_estado()
         else:
             self.timer_bot = 0.0
 
@@ -276,9 +406,16 @@ class TableScreen:
         self.mensagem_vencedor_por_fold = None
         if self.table.jogo_tem_vencedor():
             vencedor = self.table.jogadores_na_mesa()[0]
+            if self.sala_rede is not None:
+                self.sala_rede.enviar_para_todos({"tipo": protocolo.FIM_DE_JOGO, "vencedor": vencedor.nome})
             self.app.finalizar_jogo(vencedor.nome)
         else:
             self._iniciar_mao()
+
+    def _sair_para_menu(self):
+        if self.sala_rede is not None:
+            self.sala_rede.encerrar()
+        self.app.ir_para_menu()
 
     # ---------------------------------------------------------------- Desenho
     def desenhar(self, tela):
@@ -356,9 +493,18 @@ class TableScreen:
 
     def _desenhar_marcador_dealer(self, tela, mesa_rect):
         x = mesa_rect.centerx
-        y = mesa_rect.top + 40
-        desenhar_avatar(tela, x, y, 22, YELLOW, "D", sombra=(3, 3))
-        desenhar_badge(tela, x, y + 32, "DEALER", INK, cor_texto=BG, tamanho_fonte=9, familia="mono")
+        y = mesa_rect.top + 44
+
+        progresso = 0.0
+        if self.anim_cropie_inicio is not None:
+            decorrido = self.tempo_decorrido - self.anim_cropie_inicio
+            if decorrido < ANIM_CROUPIER_DURACAO:
+                progresso = decorrido / ANIM_CROUPIER_DURACAO
+            else:
+                self.anim_cropie_inicio = None
+
+        desenhar_cropie(tela, x, y, progresso)
+        desenhar_badge(tela, x, y + 64, "CROUPIÊ", INK, cor_texto=BG, tamanho_fonte=9, familia="mono")
 
     def _posicoes_assentos(self, mesa_rect, n_jogadores):
         """Retorna assentos visuais FIXOS para todos os n jogadores."""
@@ -398,6 +544,9 @@ class TableScreen:
     def _status_bot(self, jogador, eh_vez_dele):
         if jogador.eliminado:
             return "Eliminado", LOCKED, TEXT_MUTED
+        if (self.sala_rede is not None and jogador.tipo == TIPO_HUMANO_REMOTO
+                and jogador.id in self.sala_rede.desconectados):
+            return "Desconectado", LOCKED, TEXT_MUTED
         if jogador.foldou:
             return "Fold", LOCKED, TEXT_MUTED
         if jogador.all_in:
@@ -431,8 +580,13 @@ class TableScreen:
             else:
                 selo_posicao = None
 
+            # As cartas (e tudo ancorado a elas: glow, badge de aposta) do
+            # jogador humano sobem um pouco para não ficarem atrás dos
+            # botões de ação; o painel de nome/stack ao lado não é afetado.
+            y_cartas = y - DESLOCAMENTO_CARTAS_HUMANO if eh_humano else y
+
             if eh_vez_dele:
-                desenhar_glow_de_vez(tela, x, y, largura_carta, altura_carta, self.tempo_decorrido)
+                desenhar_glow_de_vez(tela, x, y_cartas, largura_carta, altura_carta, self.tempo_decorrido)
 
             espaco_cartas = 8 if eh_humano else 4
             total_largura = 2 * largura_carta + espaco_cartas
@@ -449,14 +603,14 @@ class TableScreen:
             for i, carta in enumerate(jogador.mao):
                 mostrar_face = eh_humano or (mostrar_cartas_bots and not jogador.foldou)
                 desenhar_carta(
-                    tela, x0 + i * (largura_carta + espaco_cartas), y - altura_carta // 2,
+                    tela, x0 + i * (largura_carta + espaco_cartas), y_cartas - altura_carta // 2,
                     largura_carta, altura_carta,
                     carta=carta if mostrar_face else None,
                     virada_para_baixo=not mostrar_face
                 )
 
             if jogador.aposta_rodada > 0:
-                desenhar_badge(tela, x, y + altura_carta // 2 + 20, str(jogador.aposta_rodada),
+                desenhar_badge(tela, x, y_cartas + altura_carta // 2 + 20, str(jogador.aposta_rodada),
                                 PANEL, cor_texto=INK, tamanho_fonte=11, familia="mono", borda=INK)
 
     def _desenhar_painel_bot(self, tela, jogador, x, y, altura_carta, eh_vez_dele, selo_posicao=None):
@@ -573,9 +727,9 @@ class TableScreen:
         eh_vez_do_humano = jogador_da_vez is not None and jogador_da_vez.id == self.id_humano
 
         base_y = altura - 90
-        self.botao_fold.midleft = (largura // 2 - 260, base_y)
+        self.botao_fold.midleft = (largura // 2 - 278, base_y)
         self.botao_call.midleft = (largura // 2 - 86, base_y)
-        self.botao_raise.midleft = (largura // 2 + 88, base_y)
+        self.botao_raise.midleft = (largura // 2 + 106, base_y)
 
         ativo = eh_vez_do_humano and not self.modo_raise
         mouse_pos = pygame.mouse.get_pos()
@@ -583,18 +737,23 @@ class TableScreen:
         a_pagar = max(0, rodada.aposta_alvo - humano.aposta_rodada) if rodada else 0
         texto_call = "Check" if a_pagar <= 0 else f"Call {a_pagar}"
 
+        mostrar_atalhos = self.app.settings.mostrar_atalhos
+
         desenhar_botao(tela, self.botao_fold, "Fold", hover=ativo and self.botao_fold.collidepoint(mouse_pos),
                         ativo=ativo, cor=CORAL, cor_texto=PANEL)
-        desenhar_kbd(tela, self.botao_fold.right - 12, self.botao_fold.bottom - 12, "F", ancorar="bottomright")
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_fold.right - 12, self.botao_fold.bottom - 12, "F", ancorar="bottomright")
 
         desenhar_botao(tela, self.botao_call, texto_call, hover=ativo and self.botao_call.collidepoint(mouse_pos),
                         ativo=ativo, cor=BLUE, cor_texto=PANEL)
-        desenhar_kbd(tela, self.botao_call.right - 12, self.botao_call.bottom - 12, "C", ancorar="bottomright")
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_call.right - 12, self.botao_call.bottom - 12, "C", ancorar="bottomright")
 
         pode_raise = ativo and humano.stack > a_pagar
         desenhar_botao(tela, self.botao_raise, "Raise", hover=pode_raise and self.botao_raise.collidepoint(mouse_pos),
                         ativo=pode_raise, cor=MINT, cor_texto=INK)
-        desenhar_kbd(tela, self.botao_raise.right - 12, self.botao_raise.bottom - 12, "R", ancorar="bottomright")
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_raise.right - 12, self.botao_raise.bottom - 12, "R", ancorar="bottomright")
 
         if not eh_vez_do_humano:
             nome_vez = jogador_da_vez.nome if jogador_da_vez else "-"

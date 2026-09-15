@@ -9,10 +9,10 @@ Este documento armazena todas as ideias, melhorias e novas funcionalidades plane
 - [x] Atalhos de teclado reais para as ações (`F` Fold, `C` Check/Call, `R` Raise, `Enter` confirmar), com os selos visuais correspondentes nos botões.
 - [ ] Pendente: revisar o layout em janelas muito pequenas com 8 jogadores na mesa (um selo SB/BB pode encostar na borda superior da tela nesse caso extremo).
 
-## 2. Sistema de Seleção de Baralhos (Pausado na migração de estilo)
-- [x] ~~Menu de configuração com Pixel Art / Clássico / Dark Mode~~ — implementado na era pixel art, hoje descontinuado.
-- Ao migrar para o Neobrutalismo Suave, o seletor de estilos de baralho foi removido da tela de Configuração: o sistema antigo de sprites (`ui_pixelart.py` + `assets/assets.png`) ficou obsoleto e não é mais usado pelo jogo, mas foi mantido no projeto como referência. Hoje existe um único baralho, desenhado no novo estilo vetorial.
-- [ ] Pendente: se fizer sentido no futuro, reimplementar a seleção de baralhos dentro do novo sistema visual (múltiplos "skins" de carta neobrutalistas, em vez de sprites).
+## 2. Sistema de Seleção de Baralhos (Reimplementado no motor vetorial)
+- [x] ~~Menu de configuração com Pixel Art / Clássico / Dark Mode~~ — implementado na era pixel art, descontinuado na migração pro Neobrutalismo Suave (sistema de sprites `ui_pixelart.py` + `assets/assets.png`, mantido só como referência).
+- [x] Seletor de skin de baralho reimplementado dentro do sistema vetorial atual: `Ajustes` ganhou uma linha "Baralho" (ciclo Padrão/Dark, `settings.ciclar_baralho_skin()`), sincronizada globalmente via `ui_theme.set_estilo_baralho()` (mesmo padrão de global usado no antigo `ui_pixelart.py`, agora sem sprites). Vale pros dois modos (Hold'em e Pif Paf), já que é uma opção visual de sessão, não de partida.
+- [ ] Pendente: mais skins além de Padrão/Dark (ex.: um terceiro estilo neobrutalista com outra paleta de acento).
 
 ## 3. Ajustes no Desenho do Baralho Atual
 - [ ] Refinar a carta neobrutalista atual (`desenhar_carta` em `ui_theme.py`): naipes, tipografia dos números e verso da carta.
@@ -23,12 +23,68 @@ Este documento armazena todas as ideias, melhorias e novas funcionalidades plane
 - [ ] Possibilidade de "montar" e salvar um baralho personalizado a partir dos assets criados para ser usado no jogo.
 
 ## 5. Novos Modos de Jogo
-- [ ] Expandir além do Texas Hold'em.
-- [ ] Implementar o modo de jogo **Pif Paf**.
-- [ ] Implementar e projetar um modo de jogo inédito/diferente.
-- Nota: os mockups em `design/*/mockup.html` já preveem uma tela de menu com seleção de modos (cards "Ativo"/"Em breve"), mas isso ainda não foi implementado no menu real do jogo — o menu atual só tem Texas Hold'em porque é o único modo que existe de fato.
+- [x] Expandir além do Texas Hold'em — tela de escolha de modo adicionada
+  (`ModeSelectScreen` em `screens.py`), reaproveitando o conceito "Ativo/Em
+  breve" dos mockups em `design/*/mockup.html`.
+- [x] Implementar o modo de jogo **Pif Paf** — ver
+  [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md) (`pifpaf_logic.py`, `pifpaf_bot_ai.py`,
+  `pifpaf_screen.py`). A regra da "a louca" ficou de fora desta primeira
+  versão (backlog).
+- [ ] Implementar e projetar um modo de jogo inédito/diferente — já existe
+  um card "EM BREVE" reservado para ele na tela de escolha de modo.
+- [x] Pif Paf: adicionada a regra tradicional de **"Mão Fechada"** (bater
+  sem comprar, pagando o dobro, quando a mão já vem pronta na distribuição)
+  — ver [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md#21-atualização-regra-mão-fechada-bater-sem-comprar).
+  Sem essa regra, uma mão perfeita na distribuição ficava presa: a compra
+  obrigatória a cada turno quase sempre quebrava a combinação de novo.
+- [x] Pif Paf: corrigido bug real em que **bater descartando a carta que
+  sobra** (o jeito normal de vencer nesse tipo de jogo) não era reconhecido
+  — só valia bate se as 10 cartas já fechassem sozinhas, antes de descartar,
+  o que é raro. Ver [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md#22-correção-bater-descartando-a-carta-que-sobra).
+  Confirmado por simulação: 78% das vitórias passaram a vir desse caminho.
+- [x] Pif Paf: corrigido o texto de "Comprar Monte"/"Comprar Descarte"
+  ficando cortado pelo selo de atalho de teclado (botões estreitos demais
+  para o texto); botões alargados em `pifpaf_screen.py`.
 
-## 6. Documentação do Projeto
+## 6. Ajustes de UI (Mesa e Menu)
+- [x] Menu Inicial: adicionado botão "Configurações" (tela `SettingsScreen`
+  em `screens.py`, ver `settings.py`) com ajustes básicos que valem para a
+  próxima partida: tela cheia, velocidade dos bots, fichas iniciais e
+  exibição dos atalhos de teclado.
+- [x] Mesa (Hold'em): cartas da mão do jogador humano subidas
+  (`DESLOCAMENTO_CARTAS_HUMANO` em `table_screen.py`) para não ficarem atrás
+  dos botões Fold/Call/Raise em janelas menores; espaçamento real adicionado
+  entre esses três botões (antes praticamente colados).
+
+## 7. Multiplayer Local (Rede)
+- [x] Implementado conforme o plano em [MULTIPLAYER_PLANO.md](MULTIPLAYER_PLANO.md):
+  anfitrião cria sala (`AnfitriaoSala` em `rede/anfitriao.py`) e recebe um
+  código curto (`rede/descoberta.py`), outros jogadores na mesma rede local
+  entram com esse código (`ClienteSala` em `rede/cliente.py`) via descoberta
+  UDP broadcast ou IP:porta manual como fallback. Arquitetura
+  host-autoritativo: o host roda o `Table` de verdade (`table_screen.py`
+  ganhou `sala_rede`, serialização de estado público e validação de ações
+  remotas), clientes rodam `MesaRemotaScreen` (`mesa_remota_screen.py`) e só
+  recebem snapshots + a própria mão, nunca as cartas alheias. Telas de sala
+  em `multiplayer_screens.py` (`CriarSalaScreen`, `EntrarSalaScreen`,
+  `LobbyScreen`), acessíveis por `ConfigScreen` → "Multiplayer Local"
+  (só no modo Hold'em, conforme o escopo do v1).
+- [x] Robustez básica (Fase 6 do plano): sala cheia recusa entrada,
+  desconexão no meio de uma mão vira fold automático (`sala_rede.desconectados`,
+  status "Desconectado" no painel do jogador), host fechar a sala avisa os
+  clientes (`sala_encerrada`) que voltam ao menu.
+- [x] Testado com automação (thread+socket real em `127.0.0.1`, sem UI):
+  handshake completo, sala cheia, desconexão, broadcast de estado, e uma
+  partida real de 2+ mãos entre um host local e um cliente de rede,
+  confirmando que o snapshot público nunca inclui as cartas de ninguém.
+- [ ] Pendente (fora do escopo do v1, ver seção 9 do plano): teste manual
+  com duas máquinas físicas na mesma Wi-Fi (só validado via `127.0.0.1` e
+  automação até agora — falta confirmar o aviso de firewall do Windows e a
+  descoberta UDP numa LAN real); reconexão após queda; Pif Paf multiplayer;
+  revelar as cartas de todos no showdown para os clientes remotos (hoje só o
+  host vê as mãos reveladas — os clientes só veem o texto do resultado).
+
+## 8. Documentação do Projeto
 - [x] Escrever um **GDD (Game Design Document)** para consolidar todas as mecânicas, regras e visão do jogo em um único lugar (`GDD.md`).
 - [x] Escrever um **Guia de Estilo** com as diretrizes visuais do projeto: em `design/`, foram criados guias técnicos (paleta, tipografia, dimensões e instruções de renderização em Pygame) e mockups HTML interativos para 3 das 5 estéticas propostas antes da migração:
   - `design/01_neobrutalismo_suave/` — **aplicada ao jogo** (ver item 1).
