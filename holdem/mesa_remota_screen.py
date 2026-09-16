@@ -1,0 +1,548 @@
+"""
+mesa_remota_screen.py - Tela do jogador "cliente" no multiplayer local
+(ver MULTIPLAYER_PLANO.md, seção 7).
+
+Não roda nenhuma `Table` de verdade: só guarda o último snapshot de `estado`
+recebido do host e a própria mão recebida por `sua_mao`. Quando é a vez do
+jogador local (segundo o snapshot), os botões de ação mandam `acao` pro host
+em vez de aplicar localmente.
+"""
+import math
+import queue
+
+import pygame
+from core.deck import Card
+from core.ui_theme import (
+    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
+    desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
+    desenhar_kbd, desenhar_glow_de_vez,
+)
+from core.chat_widget import ChatWidget
+from rede import protocolo
+
+CARTA_OUTRO = (46, 64)
+CARTA_COMUNITARIA = (64, 90)
+CARTA_PROPRIA = (100, 140)
+DESLOCAMENTO_CARTAS_PROPRIAS = 40
+
+PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
+
+HIST_MAX_LINHAS = 7
+HIST_LARGURA = 300
+HIST_MARGEM = 24
+
+
+def _posicoes_assentos(mesa_rect, n_jogadores):
+    """Mesmos ângulos fixos de table_screen.py, para o layout visual ficar
+    igual do ponto de vista de qualquer jogador conectado."""
+    if n_jogadores == 2:
+        angulos = [90, 180]
+    elif n_jogadores == 3:
+        angulos = [90, 180, 0]
+    elif n_jogadores == 4:
+        angulos = [90, 180, 225, 0]
+    elif n_jogadores == 5:
+        angulos = [90, 150, 210, 330, 30]
+    elif n_jogadores == 6:
+        angulos = [90, 135, 180, 225, 315, 0]
+    elif n_jogadores == 7:
+        angulos = [90, 135, 180, 225, 315, 0, 45]
+    else:
+        angulos = [90, 125, 160, 195, 230, 310, 350, 30]
+
+    posicoes = []
+    for i in range(n_jogadores):
+        ang = math.radians(angulos[i])
+        rx = mesa_rect.width // 2 + 70
+        ry = mesa_rect.height // 2 + 70
+        x = mesa_rect.centerx + int(rx * math.cos(ang))
+        y = mesa_rect.centery + int(ry * math.sin(ang))
+        posicoes.append((x, y))
+    return posicoes
+
+
+def _iniciais(nome):
+    partes = nome.replace('"', "").split()
+    if len(partes) >= 2:
+        return (partes[0][0] + partes[1][0]).upper()
+    return nome[:2].upper()
+
+
+class MesaRemotaScreen:
+    def __init__(self, app, sala_cliente):
+        self.app = app
+        self.sala = sala_cliente
+        self.meu_id = sala_cliente.meu_id
+
+        self.estado = None
+        self.minha_mao = []
+        self.tempo_decorrido = 0.0
+
+        self.erro_acao = None
+        self.tempo_erro_acao = 0.0
+
+        self.mensagem_final = None  # sala encerrada / conexão perdida
+        self.vencedor_final = None
+
+        self.chat = ChatWidget(self._enviar_chat)
+
+        self.modo_raise = False
+        self.valor_raise_atual = 0
+        self.arrastando_slider = False
+
+        self.botao_fold = pygame.Rect(0, 0, 172, 68)
+        self.botao_call = pygame.Rect(0, 0, 172, 68)
+        self.botao_raise = pygame.Rect(0, 0, 172, 68)
+        self.botao_confirmar_raise = pygame.Rect(0, 0, 180, 48)
+        self.botao_cancelar_raise = pygame.Rect(0, 0, 130, 48)
+        self.slider_rect = pygame.Rect(0, 0, 320, 14)
+        self.slider_alca = pygame.Rect(0, 0, 22, 32)
+        self.botao_sair = pygame.Rect(0, 0, 110, 44)
+
+    # ---------------------------------------------------------------- Estado
+    def _meu_jogador(self):
+        if self.estado is None:
+            return None
+        for j in self.estado["jogadores"]:
+            if j["id"] == self.meu_id:
+                return j
+        return None
+
+    def _eh_minha_vez(self):
+        return self.estado is not None and self.estado.get("jogador_da_vez_id") == self.meu_id
+
+    def _enviar_acao(self, acao, valor):
+        self.sala.enviar({"tipo": protocolo.ACAO, "acao": acao, "valor": valor})
+
+    def _enviar_chat(self, texto):
+        self.sala.enviar({"tipo": protocolo.CHAT, "texto": texto})
+
+    def _sair(self):
+        self.sala.fechar()
+        self.app.ir_para_menu()
+
+    # ---------------------------------------------------------------- Update
+    def atualizar(self, dt):
+        self.tempo_decorrido += dt
+        if self.tempo_erro_acao > 0:
+            self.tempo_erro_acao -= dt
+            if self.tempo_erro_acao <= 0:
+                self.erro_acao = None
+
+        while True:
+            try:
+                msg = self.sala.mensagens_entrantes.get_nowait()
+            except queue.Empty:
+                break
+            tipo = msg.get("tipo")
+            if tipo == protocolo.ESTADO:
+                self.estado = msg
+                if not self._eh_minha_vez():
+                    self.modo_raise = False
+            elif tipo == protocolo.SUA_MAO:
+                self.minha_mao = msg.get("cartas", [])
+            elif tipo == protocolo.ERRO_ACAO:
+                self.erro_acao = msg.get("motivo")
+                self.tempo_erro_acao = 3.0
+            elif tipo == protocolo.FIM_DE_JOGO:
+                self.vencedor_final = msg.get("vencedor")
+            elif tipo == protocolo.CHAT:
+                self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
+
+        if self.vencedor_final is None and self.sala.status in ("sala_encerrada", "desconectado"):
+            self.mensagem_final = self.sala.erro or "Conexão com o anfitrião perdida."
+
+    # ---------------------------------------------------------------- Eventos
+    def tratar_evento(self, evento):
+        if self.chat.tratar_evento(evento):
+            return
+
+        if self.vencedor_final is not None or self.mensagem_final is not None:
+            if evento.type == pygame.MOUSEBUTTONDOWN:
+                self._sair()
+            return
+
+        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+            if self.botao_sair.collidepoint(evento.pos):
+                self._sair()
+                return
+
+        if self.estado is None or self.estado.get("resultado") is not None:
+            return
+
+        meu = self._meu_jogador()
+        if meu is None:
+            return
+        eh_minha_vez = self._eh_minha_vez()
+        a_pagar = max(0, self.estado.get("aposta_alvo", 0) - meu["aposta_rodada"])
+
+        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+            if not eh_minha_vez:
+                return
+            if self.modo_raise:
+                if self.slider_alca.collidepoint(evento.pos):
+                    self.arrastando_slider = True
+                elif self.botao_confirmar_raise.collidepoint(evento.pos):
+                    self._enviar_acao("raise", self.valor_raise_atual)
+                    self.modo_raise = False
+                elif self.botao_cancelar_raise.collidepoint(evento.pos):
+                    self.modo_raise = False
+                return
+
+            if self.botao_fold.collidepoint(evento.pos):
+                self._enviar_acao("fold", 0)
+            elif self.botao_call.collidepoint(evento.pos):
+                self._enviar_acao("check" if a_pagar <= 0 else "call", 0)
+            elif self.botao_raise.collidepoint(evento.pos):
+                self._entrar_modo_raise(meu, a_pagar)
+
+        elif evento.type == pygame.MOUSEBUTTONUP:
+            self.arrastando_slider = False
+
+        elif evento.type == pygame.MOUSEMOTION and self.arrastando_slider:
+            self._atualizar_valor_slider(evento.pos[0], meu, a_pagar)
+
+        elif evento.type == pygame.KEYDOWN:
+            if not eh_minha_vez:
+                return
+            if self.modo_raise:
+                if evento.key == pygame.K_RETURN:
+                    self._enviar_acao("raise", self.valor_raise_atual)
+                    self.modo_raise = False
+                return
+            if evento.key == pygame.K_f:
+                self._enviar_acao("fold", 0)
+            elif evento.key == pygame.K_c:
+                self._enviar_acao("check" if a_pagar <= 0 else "call", 0)
+            elif evento.key == pygame.K_r:
+                self._entrar_modo_raise(meu, a_pagar)
+
+    def _entrar_modo_raise(self, meu, a_pagar):
+        bb = self.estado["blinds"][1]
+        min_raise = max(bb, self.estado.get("ultimo_raise_valor", bb))
+        maximo = max(1, meu["stack"] - a_pagar)
+        self.valor_raise_atual = min(min_raise, maximo)
+        self.modo_raise = True
+
+    def _atualizar_valor_slider(self, mouse_x, meu, a_pagar):
+        maximo = max(1, meu["stack"] - a_pagar)
+        bb = self.estado["blinds"][1]
+        min_raise = min(max(bb, self.estado.get("ultimo_raise_valor", bb)), maximo)
+
+        proporcao = (mouse_x - self.slider_rect.x) / max(1, self.slider_rect.width)
+        proporcao = min(1.0, max(0.0, proporcao))
+        valor_bruto = int(maximo * proporcao)
+        self.valor_raise_atual = max(min_raise, valor_bruto)
+
+    # ---------------------------------------------------------------- Desenho
+    def desenhar(self, tela):
+        largura, altura = tela.get_size()
+        tela.fill(BG)
+
+        if self.vencedor_final is not None:
+            self._desenhar_tela_final(tela, largura, altura)
+            return
+
+        if self.estado is None:
+            desenhar_texto(tela, "Conectando à mesa...", largura // 2, altura // 2,
+                            tamanho=20, cor=INK, centralizado=True, negrito=True)
+            return
+
+        mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.55))
+        mesa_rect.center = (largura // 2, int(altura * 0.42))
+        desenhar_mesa(tela, mesa_rect)
+
+        self._desenhar_topo(tela, largura)
+        self._desenhar_comunitarias(tela, mesa_rect)
+        self._desenhar_pote(tela, mesa_rect)
+        self._desenhar_jogadores(tela, mesa_rect, largura, altura)
+        self._desenhar_historico(tela, largura, altura)
+        self._desenhar_botao_sair(tela)
+        self.chat.desenhar(tela, largura, altura)
+
+        if self.mensagem_final is not None:
+            self._desenhar_mensagem_final(tela, largura, altura)
+            return
+
+        resultado = self.estado.get("resultado")
+        if resultado is not None:
+            self._desenhar_resultado(tela, largura, altura, resultado)
+        else:
+            self._desenhar_controles(tela, largura, altura)
+
+        if self.erro_acao:
+            desenhar_badge(tela, largura // 2, altura - 140, self.erro_acao, CORAL,
+                            cor_texto=PANEL, tamanho_fonte=12, borda=INK)
+
+    def _desenhar_topo(self, tela, largura):
+        sb, bb = self.estado["blinds"]
+        desenhar_badge(tela, largura // 2, 30, f"MÃO #{self.estado['mao_numero']}   BLINDS {sb}/{bb}",
+                        PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
+        meu = self._meu_jogador()
+        stack = meu["stack"] if meu else 0
+        desenhar_badge(tela, largura - 24, 30, f"VOCÊ: {stack}",
+                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        ancorar="midright", borda=INK)
+
+    def _desenhar_botao_sair(self, tela):
+        self.botao_sair.topleft = (20, 20)
+        mouse_pos = pygame.mouse.get_pos()
+        desenhar_botao(tela, self.botao_sair, "Sair", hover=self.botao_sair.collidepoint(mouse_pos),
+                        tamanho_fonte=14, cor=PANEL)
+
+    def _desenhar_comunitarias(self, tela, mesa_rect):
+        cartas = [Card(valor, naipe) for valor, naipe in self.estado["comunitarias"]]
+        n = len(cartas)
+        largura_carta, altura_carta = CARTA_COMUNITARIA
+        espaco = 12
+        total_largura = 5 * largura_carta + 4 * espaco
+        x0 = mesa_rect.centerx - total_largura // 2
+        y0 = mesa_rect.centery - altura_carta // 2 - 22
+        for i in range(5):
+            x = x0 + i * (largura_carta + espaco)
+            if i < n:
+                desenhar_carta(tela, x, y0, largura_carta, altura_carta, cartas[i])
+            else:
+                rect_vazio = pygame.Rect(x, y0, largura_carta, altura_carta)
+                pygame.draw.rect(tela, (255, 255, 255), rect_vazio, width=2, border_radius=10)
+
+    def _desenhar_pote(self, tela, mesa_rect):
+        desenhar_badge(tela, mesa_rect.centerx, mesa_rect.centery + 56, f"POTE: {self.estado['pote']}",
+                        YELLOW, cor_texto=INK, tamanho_fonte=16, familia="mono", borda=INK)
+
+    def _status_jogador(self, jogador, eh_vez_dele):
+        if jogador["eliminado"]:
+            return "Eliminado", LOCKED, TEXT_MUTED
+        if jogador.get("desconectado"):
+            return "Desconectado", LOCKED, TEXT_MUTED
+        if jogador["foldou"]:
+            return "Fold", LOCKED, TEXT_MUTED
+        if jogador["all_in"]:
+            return "All-in", PURPLE, PANEL
+        if eh_vez_dele:
+            return "Pensando...", BLUE, PANEL
+        if jogador["aposta_rodada"] > 0:
+            return f"Apostou {jogador['aposta_rodada']}", MINT, INK
+        return None, None, None
+
+    def _desenhar_jogadores(self, tela, mesa_rect, largura, altura):
+        jogadores = self.estado["jogadores"]
+        n = len(jogadores)
+        posicoes = _posicoes_assentos(mesa_rect, n)
+        jogador_da_vez_id = self.estado.get("jogador_da_vez_id")
+
+        for indice, (x, y) in enumerate(posicoes):
+            jogador = jogadores[indice]
+            eh_eu = jogador["id"] == self.meu_id
+            largura_carta, altura_carta = CARTA_PROPRIA if eh_eu else CARTA_OUTRO
+            eh_vez_dele = jogador_da_vez_id == jogador["id"]
+
+            y_cartas = y - DESLOCAMENTO_CARTAS_PROPRIAS if eh_eu else y
+
+            if eh_vez_dele:
+                desenhar_glow_de_vez(tela, x, y_cartas, largura_carta, altura_carta, self.tempo_decorrido)
+
+            espaco_cartas = 8 if eh_eu else 4
+            total_largura = 2 * largura_carta + espaco_cartas
+
+            if eh_eu:
+                self._desenhar_painel_proprio(tela, jogador, x, y, total_largura)
+            else:
+                self._desenhar_painel_outro(tela, jogador, x, y, altura_carta, eh_vez_dele)
+
+            if jogador["eliminado"]:
+                continue
+
+            x0 = x - total_largura // 2
+            if eh_eu:
+                cartas = [Card(valor, naipe) for valor, naipe in self.minha_mao]
+                for i in range(2):
+                    carta = cartas[i] if i < len(cartas) else None
+                    desenhar_carta(tela, x0 + i * (largura_carta + espaco_cartas), y_cartas - altura_carta // 2,
+                                    largura_carta, altura_carta, carta=carta, virada_para_baixo=carta is None)
+            elif not jogador["foldou"]:
+                for i in range(2):
+                    desenhar_carta(tela, x0 + i * (largura_carta + espaco_cartas), y_cartas - altura_carta // 2,
+                                    largura_carta, altura_carta, carta=None, virada_para_baixo=True)
+
+            if jogador["aposta_rodada"] > 0:
+                desenhar_badge(tela, x, y_cartas + altura_carta // 2 + 20, str(jogador["aposta_rodada"]),
+                                PANEL, cor_texto=INK, tamanho_fonte=11, familia="mono", borda=INK)
+
+    def _desenhar_painel_outro(self, tela, jogador, x, y, altura_carta, eh_vez_dele):
+        cor_avatar = PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
+        painel_w, painel_h = 178, 62
+        painel = pygame.Rect(0, 0, painel_w, painel_h)
+        painel.centerx = x
+        painel.bottom = y - altura_carta // 2 - 14
+
+        fundo = LOCKED if (jogador["foldou"] or jogador["eliminado"]) else PANEL
+        desenhar_painel(tela, painel, cor=fundo, radius=16, deslocamento_sombra=(3, 3))
+
+        desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
+
+        cor_nome = TEXT_MUTED if (jogador["foldou"] or jogador["eliminado"]) else INK
+        desenhar_texto(tela, jogador["nome"], painel.x + 62, painel.y + 12, tamanho=13,
+                        cor=cor_nome, negrito=True)
+        desenhar_texto(tela, str(jogador["stack"]), painel.x + 62, painel.y + 30, tamanho=12,
+                        cor=TEXT_MUTED, familia="mono")
+
+        status_texto, status_cor, status_cor_texto = self._status_jogador(jogador, eh_vez_dele)
+        if status_texto:
+            desenhar_badge(tela, painel.x + 62, painel.y + 48, status_texto, status_cor,
+                            cor_texto=status_cor_texto, tamanho_fonte=9, ancorar="midleft")
+
+    def _desenhar_painel_proprio(self, tela, jogador, x, y, total_largura):
+        painel_w, painel_h = 176, 68
+        painel = pygame.Rect(0, 0, painel_w, painel_h)
+        painel.right = x - total_largura // 2 - 26
+        painel.centery = y
+
+        desenhar_painel(tela, painel, cor=PANEL, radius=16, deslocamento_sombra=(3, 3))
+        desenhar_texto(tela, jogador["nome"], painel.centerx, painel.y + 18, tamanho=15,
+                        cor=INK, negrito=True, centralizado=True)
+        desenhar_pilha_fichas(tela, painel.centerx - 30, painel.y + 46, jogador["stack"], raio=8)
+
+        if jogador["foldou"]:
+            desenhar_badge(tela, painel.centerx, painel.bottom - 12, "Fold", LOCKED,
+                            cor_texto=TEXT_MUTED, tamanho_fonte=9)
+        elif jogador["all_in"]:
+            desenhar_badge(tela, painel.centerx, painel.bottom - 12, "All-in", PURPLE,
+                            cor_texto=PANEL, tamanho_fonte=9)
+
+    def _desenhar_historico(self, tela, largura, altura):
+        altura_linha = 26
+        altura_painel = 44 + HIST_MAX_LINHAS * altura_linha
+        painel = pygame.Rect(0, 0, HIST_LARGURA, altura_painel)
+        painel.bottomright = (largura - HIST_MARGEM, altura - HIST_MARGEM)
+        desenhar_painel(tela, painel, cor=PANEL, radius=20, deslocamento_sombra=(5, 5))
+
+        desenhar_texto(tela, "HISTÓRICO DA RODADA", painel.x + 18, painel.y + 14,
+                        tamanho=12, cor=INK, negrito=True)
+        pygame.draw.line(tela, INK, (painel.x + 16, painel.y + 34),
+                          (painel.right - 16, painel.y + 34), 2)
+
+        y = painel.y + 42
+        for texto in self.estado.get("historico", [])[-HIST_MAX_LINHAS:]:
+            pygame.draw.rect(tela, TEXT_MUTED, (painel.x + 16, y + 4, 4, altura_linha - 10), border_radius=2)
+            desenhar_texto(tela, texto[:34], painel.x + 26, y + int(altura_linha * 0.5),
+                            tamanho=12, cor=INK)
+            y += altura_linha
+
+    def _desenhar_resultado(self, tela, largura, altura, resultados):
+        painel = pygame.Rect(0, 0, 480, 130 + 30 * len(resultados))
+        painel.center = (largura // 2, altura - 160)
+        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_texto(tela, "RESULTADO DA MÃO", painel.centerx, painel.y + 24,
+                        tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
+        for i, r in enumerate(resultados):
+            texto = f"{', '.join(r['vencedores'])} venceu {r['pote']} ({r['categoria']})"
+            desenhar_texto(tela, texto, painel.centerx, painel.y + 52 + i * 26,
+                            tamanho=14, cor=TEXT_MUTED, centralizado=True)
+        desenhar_texto(tela, "Aguardando o anfitrião avançar para a próxima mão...",
+                        painel.centerx, painel.bottom - 20, tamanho=11, cor=TEXT_MUTED, centralizado=True)
+
+    def _desenhar_mensagem_final(self, tela, largura, altura):
+        overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        overlay.fill((*INK, 150))
+        tela.blit(overlay, (0, 0))
+
+        painel = pygame.Rect(0, 0, 440, 200)
+        painel.center = (largura // 2, altura // 2)
+        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_texto(tela, "Sala encerrada", painel.centerx, painel.y + 50,
+                        tamanho=26, cor=INK, negrito=True, centralizado=True, familia="display")
+        desenhar_texto(tela, self.mensagem_final, painel.centerx, painel.y + 100,
+                        tamanho=13, cor=TEXT_MUTED, centralizado=True)
+        desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
+                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+
+    def _desenhar_tela_final(self, tela, largura, altura):
+        painel = pygame.Rect(0, 0, 440, 220)
+        painel.center = (largura // 2, altura // 2)
+        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+
+        desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
+                        tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
+        desenhar_texto(tela, f"Vencedor: {self.vencedor_final}", painel.centerx, painel.y + 100,
+                        tamanho=19, cor=TEXT_MUTED, centralizado=True)
+        desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
+                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+
+    def _desenhar_controles(self, tela, largura, altura):
+        meu = self._meu_jogador()
+        if meu is None:
+            return
+        eh_minha_vez = self._eh_minha_vez()
+        a_pagar = max(0, self.estado.get("aposta_alvo", 0) - meu["aposta_rodada"])
+
+        base_y = altura - 90
+        self.botao_fold.midleft = (largura // 2 - 278, base_y)
+        self.botao_call.midleft = (largura // 2 - 86, base_y)
+        self.botao_raise.midleft = (largura // 2 + 106, base_y)
+
+        ativo = eh_minha_vez and not self.modo_raise
+        mouse_pos = pygame.mouse.get_pos()
+        texto_call = "Check" if a_pagar <= 0 else f"Call {a_pagar}"
+        mostrar_atalhos = self.app.settings.mostrar_atalhos
+
+        desenhar_botao(tela, self.botao_fold, "Fold", hover=ativo and self.botao_fold.collidepoint(mouse_pos),
+                        ativo=ativo, cor=CORAL, cor_texto=PANEL)
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_fold.right - 12, self.botao_fold.bottom - 12, "F", ancorar="bottomright")
+
+        desenhar_botao(tela, self.botao_call, texto_call, hover=ativo and self.botao_call.collidepoint(mouse_pos),
+                        ativo=ativo, cor=BLUE, cor_texto=PANEL)
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_call.right - 12, self.botao_call.bottom - 12, "C", ancorar="bottomright")
+
+        pode_raise = ativo and meu["stack"] > a_pagar
+        desenhar_botao(tela, self.botao_raise, "Raise", hover=pode_raise and self.botao_raise.collidepoint(mouse_pos),
+                        ativo=pode_raise, cor=MINT, cor_texto=INK)
+        if mostrar_atalhos:
+            desenhar_kbd(tela, self.botao_raise.right - 12, self.botao_raise.bottom - 12, "R", ancorar="bottomright")
+
+        if not eh_minha_vez:
+            vez_id = self.estado.get("jogador_da_vez_id")
+            nome_vez = next((j["nome"] for j in self.estado["jogadores"] if j["id"] == vez_id), "-")
+            desenhar_badge(tela, largura // 2, 58, f"Vez de: {nome_vez}",
+                            PANEL, cor_texto=INK, tamanho_fonte=12, borda=INK)
+
+        if self.modo_raise:
+            self._desenhar_slider_raise(tela, largura, altura, meu, a_pagar)
+
+    def _desenhar_slider_raise(self, tela, largura, altura, meu, a_pagar):
+        painel = pygame.Rect(0, 0, 420, 140)
+        painel.center = (largura // 2, altura - 180)
+        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+
+        maximo = max(1, meu["stack"] - a_pagar)
+        self.valor_raise_atual = min(self.valor_raise_atual, maximo)
+
+        desenhar_texto(tela, f"Valor do Raise: {self.valor_raise_atual}", painel.centerx, painel.y + 24,
+                        tamanho=16, cor=INK, centralizado=True, negrito=True, familia="mono")
+
+        self.slider_rect.midleft = (painel.x + 30, painel.y + 62)
+        self.slider_rect.width = painel.width - 60
+        pygame.draw.rect(tela, LOCKED, self.slider_rect, border_radius=7)
+        pygame.draw.rect(tela, INK, self.slider_rect, 2, border_radius=7)
+
+        proporcao = self.valor_raise_atual / maximo if maximo > 0 else 0
+        alca_x = self.slider_rect.x + int(proporcao * self.slider_rect.width)
+        self.slider_alca.center = (alca_x, self.slider_rect.centery)
+        pygame.draw.rect(tela, INK, self.slider_alca.move(2, 2), border_radius=6)
+        pygame.draw.rect(tela, MINT, self.slider_alca, border_radius=6)
+        pygame.draw.rect(tela, INK, self.slider_alca, 2, border_radius=6)
+
+        desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED, familia="mono")
+        desenhar_texto(tela, f"{maximo} (all-in)", self.slider_rect.right, self.slider_rect.y + 22,
+                        tamanho=12, cor=TEXT_MUTED, familia="mono")
+
+        self.botao_confirmar_raise.midleft = (painel.x + 20, painel.bottom - 28)
+        self.botao_cancelar_raise.midright = (painel.right - 20, painel.bottom - 28)
+        mouse_pos = pygame.mouse.get_pos()
+        desenhar_botao(tela, self.botao_confirmar_raise, "Confirmar",
+                        hover=self.botao_confirmar_raise.collidepoint(mouse_pos), tamanho_fonte=15, cor=MINT)
+        desenhar_botao(tela, self.botao_cancelar_raise, "Cancelar",
+                        hover=self.botao_cancelar_raise.collidepoint(mouse_pos), tamanho_fonte=15, cor=PANEL)
