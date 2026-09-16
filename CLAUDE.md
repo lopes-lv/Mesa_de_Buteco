@@ -1,0 +1,66 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+Python + Pygame desktop card/tile game ("Solo vs Bots") with three playable modes — Texas Hold'em, Pif Paf, and Dominó — sharing one tournament/elimination structure and one visual style ("Neobrutalismo Suave / Dashboard Analítico") drawn entirely with `pygame.draw` (no external card/tile images). Docs are in Portuguese; match that when editing them.
+
+## Commands
+
+```bash
+pip install pygame
+python main.py
+```
+
+There is no requirements.txt, test suite, linter, or build config in this repo — `pygame` is the only dependency. There are no automated tests; verify gameplay changes by running the game and playing through the affected flow (or via `Agent`/manual play), not by adding a test framework.
+
+Build a Windows executable (must be run on Windows, no cross-compile):
+```bash
+pip install pygame pyinstaller
+pyinstaller --onefile --windowed --name "PixelPoker" main.py
+```
+
+## Architecture
+
+Code is organized into packages by module: `core/` (shared shell), `holdem/`,
+`pifpaf/`, `domino/` (one per game engine), `menus/` (pre-game/lobby screens),
+`rede/` (multiplayer networking). `main.py` stays at the project root as the
+entry point.
+
+**Screen state machine.** `main.py`'s `App` holds `self.tela_atual` (current screen object) and swaps it via `ir_para_*` methods. Every screen implements `atualizar(dt)`, `desenhar(tela)`, `tratar_evento(evento)`. The main loop (`App.executar`) just delegates to whichever screen is current — new screens plug in by following this same trio of methods and getting a `ir_para_*` navigation method on `App`.
+
+**Three parallel game engines, one shared shell.** Each mode has its own self-contained logic/AI/screen trio that never imports from the other's:
+- Hold'em (`holdem/`): `game_logic.py` (`Player`, `BettingRound`, `Table`) + `hand_evaluator.py` + `bot_ai.py` + `table_screen.py` (host/local) + `mesa_remota_screen.py` (remote client)
+- Pif Paf (`pifpaf/`): `pifpaf_logic.py` (`PifPafPlayer`, `PifPafTable`) + `pifpaf_bot_ai.py` + `pifpaf_screen.py` (host/local) + `mesa_remota_pifpaf_screen.py` (remote client)
+- Dominó (`domino/`): `domino_logic.py` (`Peca`, `DominoPlayer`, `DominoTable`) + `domino_bot_ai.py` + `domino_theme.py` (tile drawing) + `domino_screen.py` (host/local) + `mesa_remota_domino_screen.py` (remote client)
+
+All three share `core/` (`deck.py` — cards, Hold'em/Pif Paf only; `ui_theme.py` — all drawing primitives, panels, buttons, badges, cards; `ui_widgets.py` — `CampoTexto`, a one-line text input; `settings.py` — in-memory session settings, not persisted to disk; `chat_widget.py`), plus the `rede/` package and `menus/` (`screens.py`, `multiplayer_screens.py`) for multiplayer. `menus/multiplayer_screens.py:MAX_JOGADORES_POR_JOGO` is the single source of truth for the max seats a room of a given game allows (8 for Hold'em/Pif Paf, 4 for Dominó) — both `AnfitriaoSala.max_jogadores` and the bot-filling logic in `main.py` read it. Dominó also enforces a *minimum* of 3 (`LobbyScreen._pode_iniciar`, `ConfigScreen.min_bots` in `menus/screens.py`) since the tile-dealing math (see below) only works out evenly for 3 or 4 players.
+
+**Hold'em engine is a pure state machine.** `Table` orchestrates one hand (blinds → preflop → flop → turn → river → showdown) and doesn't know or care whether an action came from mouse input, `bot_ai.decidir_acao_bot`, or a network packet from `rede/anfitriao.py` (per `MULTIPLAYER_PLANO.md`) — every action flows through `rodada_atual.aplicar_acao(jogador, acao, valor)`. `Player.tipo` (`bot`/`humano_local`/`humano_remoto`) records the origin for whoever draws/decides the next action; `Table`/`BettingRound` never read it. `PifPafPlayer.tipo`/`DominoPlayer.tipo` mirror the same three values. Keep this decoupling when touching any engine: don't let it reach into UI or input state.
+
+**Dominó is a 3-4 player points race to 250, no boneyard.** With 4 players the full 28-tile double-six set deals evenly (7 each); with 3, `domino_logic.criar_pecas()` removes the 0/0 tile so 27 tiles deal evenly too (9 each) — there's never a leftover pile, so there's no "comprar" (draw) action at all. `jogador_da_vez` either has a legal move (play a tile, choosing which end when it fits both) or doesn't, in which case they must explicitly click "Passar" (`DominoTableScreen._passar`/the network `acao_domino: passar` action) — bots and disconnected remote players auto-pass the same way `DominoTableScreen.atualizar()` used to auto-draw. Scoring replaces the old chip-stack economy entirely: `DominoPlayer.pontuacao` accumulates via (1) closing the open ends to a multiple of 5 on any play (`DominoTable.pontos_pontas`-style logic, doubles count both pips), (2) the batida bonus when someone empties their hand (opponents' remaining pips summed and rounded down to the nearest multiple of 5, +30 if the closing tile was a double), (3) +10 to whoever played immediately before someone passes, and (4) +50 if every other player passes in a row and it comes back to you still able to play ("trancar parcial" — the hand continues). If literally nobody (including that player) can move, the hand ends in `bloqueio_total`: lowest hand-points wins the same rounded-down sum, and the next hand resets to the "whoever holds 6/6 must open with it" rule (also true for hand #1 of the match). Every hand's opening move must be a carroça (double), no exceptions — hand #1 and every post-`bloqueio_total` hand forces the exact 6/6 (`peca_obrigatoria`); other hands let the previous winner pick *which* double to open with, among whatever they're holding (`jogadas_possiveis_em`'s empty-board branch filters the hand down to carroças-only, falling back to the full hand only if the opener holds no double at all — `DominoTable.jogar()` independently re-checks this, same "don't trust the UI alone" pattern as the bucho gate below). `DominoTable.vencedor_do_jogo()` is checked only once a hand actually ends (never mid-hand) and ends the whole match at 250+. See `PecaNaMesa` in `domino_logic.py` (fields `interno`/`externo`, direction-neutral) for how a played tile's visual orientation is tracked separately from `Peca`'s normalized identity — needed both for pip-matching rendering and for the multiple-of-5 scoring math.
+
+**The board is a cross, not a line.** `DominoTable.ramos`/`extremidades` are dicts keyed by `domino_logic.DIRECOES` (`esquerda`/`direita`/`cima`/`baixo`), each an independent branch growing outward from `primeira_peca` (the hand's opening tile, kept separately as the board's center). Normally only `esquerda`/`direita` exist (a plain line, exactly like a single 2-ended chain). If `primeira_peca` is a double, `self.eh_spinner` flips on — every double is guaranteed a spinner on a forced-6/6 opening (hand #1, and any hand after a `bloqueio_total`), and possible-but-optional on a free opening. `cima`/`baixo` only actually become playable once `DominoTable.bucho_liberado()` is true (both `ramos["esquerda"]` and `ramos["direita"]` have at least one tile — the traditional "play both sides of the spinner before the bucho" rule); `jogadas_possiveis()` masks `cima`/`baixo` out of the extremidades dict it hands to `jogadas_possiveis_em()` until then, and `jogar()` independently re-checks `bucho_liberado()` before touching `ramos["cima"]`/`["baixo"]` (never trust the UI alone — the remote client mirrors the same gate locally in `_bucho_liberado()` just for preview/highlighting, but the host is what actually enforces it). Only the opening tile ever spins; a double landing later in any branch just renders rotated (see below) without creating a new branch. `jogadas_possiveis_em()` (the pure function shared with the remote client) is the single source of truth for which `(peca, direcao)` pairs are legal, and — critically — does **not** dedupe across directions once spinning, even when two branches currently expose the same pip value, because each direction is a physically different place to put the tile. `DominoTable.pontos_pontas()` only counts `cima`/`baixo` toward the multiple-of-5 score once a branch actually has a tile in it (being a legal target isn't enough).
+
+**Rendering doubles "deitadas" and drag-and-drop.** `domino/domino_screen.py`/`domino/mesa_remota_domino_screen.py`'s `_layout_mesa()` walks each active branch outward from the center tile, sizing every piece via `_tamanho_peca(direcao, eh_carroca)`: a normal tile's long axis follows its branch's growth axis, a double's is always perpendicular to it (reusing `domino_theme.desenhar_peca`'s existing `vertical=` flag — no theme-file changes needed) — this is also why a double advances the layout cursor less than a normal tile. A single scale factor is picked to fit both the horizontal (esquerda+direita) and vertical (cima+baixo) extents inside the felt at once — deliberately with no minimum-scale floor propping it back up (a branch with enough tiles just renders smaller, never overflows the felt). Branches are built in a local coordinate space with the center tile at `(0, 0)` first, then the whole assembly (every tile rect *and* every drop zone) is translated once so their union's center lands on `mesa_rect.center` — branches are rarely symmetric in a real game (way more tiles played left than right, say), so centering the spinner tile itself instead would let the longer side poke out past the felt even though the total width fits. There's no more click-to-select-then-click-a-zone: `tratar_evento` starts a drag on `MOUSEBUTTONDOWN` over a legal hand tile (`peca_arrastando`), follows the cursor on `MOUSEMOTION`, and on `MOUSEBUTTONUP` either applies the play if the cursor is over one of that tile's `zonas_drop_ativas` (computed per-drag from the previous frame's `_zonas_mesa`, restricted to *that piece's* legal directions) or does nothing (the tile was never removed from `mao`, so it just reappears in the tray).
+
+**Hand evaluation via tuples.** `hand_evaluator.py` scores a 5-card hand as a tuple `(categoria, desempates...)` where larger tuples win — this makes comparison, tie-breaking, and split-pot detection just Python tuple comparison (`>`, `<`, `==`). Preserve this shape if you extend it (e.g. new categories or kicker rules).
+
+**Side pots.** `calcular_potes()` in `game_logic.py` computes main pot + side pots from each player's `total_apostado_mao`, supporting partial all-ins, then merges consecutive pots with identical eligible-player sets. Split-pot remainder chips go to whoever is closest to the dealer.
+
+**Bot AI is per-mode and stateless-ish.** `bot_ai.py` (Hold'em) assigns each bot a fixed risk profile per match (tight/balanced/aggressive/tricky) and decides using hand strength, draws, pot odds, bet pressure, table position, and active opponent count. `pifpaf_bot_ai.py` (Pif Paf) and `domino_bot_ai.py` (Dominó) are each a single heuristic (no per-match profiles): Pif Paf only draws from discard when it actually reduces loose-card points, always knocks (`bate`) when possible, never discards the wild card; Dominó prefers a legal play that scores (multiple of 5 on the open ends, via `DominoTable.pontuacao_se_jogar`) over one that doesn't, then doubles, then the highest-point tile among what's left.
+
+**Deprecated code kept for reference.** `core/ui_pixelart.py` (old pixel-art rendering) and `assets/assets.png` are unused by the current game (replaced by `core/ui_theme.py`'s vector style) but intentionally kept — see `GDD.md` §3.2 for the rationale (possible future reintroduction as an alternate deck skin). Don't delete them without checking with the user; don't wire new features into them either.
+
+**`design/` directory.** Contains standalone HTML mockups + technical guides for visual styles that were evaluated before implementation. Only `design/01_neobrutalismo_suave/` was actually implemented in Pygame; `03_casino_minimalista/` and `05_cozy_flat/` are validated-but-unbuilt alternatives. These are design references, not part of the running app.
+
+## Key docs
+
+- `README.md` — setup, project layout, implemented rules summary, PyInstaller packaging.
+- `GDD.md` — living game design document (modes, economy, planned features).
+- `PIF_PAF_GUIA.md` — Pif Paf rules research and this project's specific design decisions/deviations (e.g. "a louca" rule is explicitly out of scope; "Mão Fechada" and the "knock by discarding the leftover card" fix are documented here with rationale).
+- `MELHORIAS.md` — project backlog/changelog of ideas and completed work, organized by theme.
+- `MULTIPLAYER_PLANO.md` — architecture plan for local-network multiplayer via a host-authoritative model, implemented for all three modes (`rede/` package, `menus/multiplayer_screens.py`, one `<mode>/mesa_remota_*_screen.py` per mode, `core/chat_widget.py` for the in-session text chat). Read this before touching any networking code — it specifies the protocol, threading model, and which files/methods it touches.
+
+When making non-trivial gameplay or architecture decisions, these docs are the source of truth for prior reasoning — check them before re-deciding something already settled, and update the relevant doc (especially `MELHORIAS.md`/`GDD.md`) when you implement backlog items or change scope.
