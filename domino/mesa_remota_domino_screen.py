@@ -14,15 +14,19 @@ localmente com a mesma função pura de `domino_logic.py`
 """
 import math
 import queue
+import random
 
 import pygame
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
-    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar,
+    BG, PANEL, INK, SOMBRA, FELT, FELT_DARK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar, desenhar_mesa,
     desenhar_badge, desenhar_glow_de_vez,
 )
-from .domino_theme import desenhar_peca
-from .domino_logic import Peca, jogadas_possiveis_em, BONUS_PASSE, DIRECOES
+from .domino_theme import desenhar_peca, desenhar_peca_verso
+from .domino_logic import (
+    Peca, jogadas_possiveis_em, BONUS_PASSE, DIRECOES,
+    FASE_EMBARALHANDO, FASE_ESCOLHENDO, FASE_JOGANDO, DURACAO_EMBARALHAR,
+)
 from core.chat_widget import ChatWidget
 from rede import protocolo
 
@@ -80,6 +84,17 @@ class MesaRemotaDominoScreen:
         self.pos_arraste = (0, 0)
         self.zonas_drop_ativas = {}
         self._zonas_mesa = {}
+
+        # Fase visual de início de mão (ver domino_logic.FASE_* e o mesmo
+        # mecanismo em domino_screen.DominoTableScreen) - puramente local a
+        # esta tela: `pecas_para_escolher` é uma cópia embaralhada de
+        # `minha_mao` (que já chegou inteira via SUA_MAO), sem afetar nada no
+        # host.
+        self.fase_mao = FASE_JOGANDO
+        self.timer_embaralhar = 0.0
+        self.pecas_para_escolher = []
+        self._qtd_embaralhando = 0
+        self._ultimo_mao_numero = None
 
         self.erro_acao = None
         self.tempo_erro_acao = 0.0
@@ -139,6 +154,18 @@ class MesaRemotaDominoScreen:
     def _enviar_passar(self):
         self.sala.enviar({"tipo": protocolo.ACAO_DOMINO, "acao": "passar"})
 
+    def _iniciar_fase_embaralhar(self):
+        self.timer_embaralhar = 0.0
+        if self.app.settings.selecao_automatica_pecas:
+            self.fase_mao = FASE_JOGANDO
+            self.pecas_para_escolher = []
+            return
+        self.fase_mao = FASE_EMBARALHANDO
+        n_jogadores = len(self.estado["jogadores"]) if self.estado else 1
+        self._qtd_embaralhando = n_jogadores * len(self.minha_mao)
+        self.pecas_para_escolher = list(self._minha_mao_pecas())
+        random.shuffle(self.pecas_para_escolher)
+
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
         self.tempo_decorrido += dt
@@ -154,6 +181,10 @@ class MesaRemotaDominoScreen:
                 break
             tipo = msg.get("tipo")
             if tipo == protocolo.ESTADO:
+                novo_mao_numero = msg.get("mao_numero")
+                if novo_mao_numero != self._ultimo_mao_numero:
+                    self._ultimo_mao_numero = novo_mao_numero
+                    self._iniciar_fase_embaralhar()
                 self.estado = msg
                 if not self._eh_minha_vez():
                     self.peca_arrastando = None
@@ -172,6 +203,11 @@ class MesaRemotaDominoScreen:
             elif tipo == protocolo.CHAT:
                 self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
 
+        if self.fase_mao == FASE_EMBARALHANDO:
+            self.timer_embaralhar += dt
+            if self.timer_embaralhar >= DURACAO_EMBARALHAR:
+                self.fase_mao = FASE_ESCOLHENDO
+
         if self.vencedor_final is None and self.sala.status in ("sala_encerrada", "desconectado"):
             self.mensagem_final = self.sala.erro or "Conexão com o anfitrião perdida."
 
@@ -189,6 +225,14 @@ class MesaRemotaDominoScreen:
             if self.botao_sair.collidepoint(evento.pos):
                 self._sair()
                 return
+
+        if self.fase_mao == FASE_EMBARALHANDO:
+            return
+
+        if self.fase_mao == FASE_ESCOLHENDO:
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                self._clicar_pilha_escolha(evento.pos)
+            return
 
         if self.estado is None or self.estado.get("resultado") is not None:
             return
@@ -240,10 +284,17 @@ class MesaRemotaDominoScreen:
         if direcao_escolhida is not None:
             self._enviar_jogada(peca, direcao_escolhida)
 
-    def _rects_mao(self):
+    def _clicar_pilha_escolha(self, pos_mouse):
+        for rect, peca in self._rects_pilha_escolha(self._mesa_rect()):
+            if rect.collidepoint(pos_mouse):
+                self.pecas_para_escolher.remove(peca)
+                if not self.pecas_para_escolher:
+                    self.fase_mao = FASE_JOGANDO
+                return
+
+    def _rects_mao_pecas(self, pecas):
         largura_peca, altura_peca = TAMANHO_PECA_MAO
         espaco = 8
-        pecas = self._minha_mao_pecas()
         n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
         largura_tela, altura_tela = pygame.display.get_surface().get_size()
@@ -255,7 +306,35 @@ class MesaRemotaDominoScreen:
             pares.append((rect, peca))
         return pares
 
+    def _rects_mao(self):
+        return self._rects_mao_pecas(self._minha_mao_pecas())
+
+    def _rects_pilha_escolha(self, mesa_rect):
+        largura_peca, altura_peca = 40, 80
+        espaco = 10
+        pecas = self.pecas_para_escolher
+        n = len(pecas)
+        por_linha = min(7, max(1, n))
+        linhas = math.ceil(n / por_linha) if n else 0
+        total_largura = por_linha * largura_peca + (por_linha - 1) * espaco
+        total_altura = linhas * altura_peca + max(0, linhas - 1) * espaco
+        x0 = mesa_rect.centerx - total_largura // 2
+        y0 = mesa_rect.centery - total_altura // 2
+        pares = []
+        for i, peca in enumerate(pecas):
+            linha, col = divmod(i, por_linha)
+            rect = pygame.Rect(x0 + col * (largura_peca + espaco), y0 + linha * (altura_peca + espaco),
+                                largura_peca, altura_peca)
+            pares.append((rect, peca))
+        return pares
+
     # ---------------------------------------------------------------- Desenho
+    def _mesa_rect(self):
+        largura, altura = pygame.display.get_surface().get_size()
+        mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
+        mesa_rect.center = (largura // 2, int(altura * 0.36))
+        return mesa_rect
+
     def desenhar(self, tela):
         largura, altura = tela.get_size()
         tela.fill(BG)
@@ -269,14 +348,16 @@ class MesaRemotaDominoScreen:
                             tamanho=20, cor=INK, centralizado=True, negrito=True)
             return
 
-        mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
-        mesa_rect.center = (largura // 2, int(altura * 0.36))
-        pygame.draw.rect(tela, INK, mesa_rect.move(8, 8), border_radius=28)
-        pygame.draw.rect(tela, (223, 219, 205), mesa_rect, border_radius=28)
-        pygame.draw.rect(tela, INK, mesa_rect, width=5, border_radius=28)
+        mesa_rect = self._mesa_rect()
+        desenhar_mesa(tela, mesa_rect)
 
         self._desenhar_topo(tela, largura)
-        self._desenhar_centro_mesa(tela, mesa_rect)
+        if self.fase_mao == FASE_EMBARALHANDO:
+            self._desenhar_embaralhando(tela, mesa_rect)
+        elif self.fase_mao == FASE_ESCOLHENDO:
+            self._desenhar_escolhendo(tela, mesa_rect)
+        else:
+            self._desenhar_centro_mesa(tela, mesa_rect)
         self._desenhar_jogadores(tela, mesa_rect)
         self._desenhar_historico(tela, largura, altura)
         self.chat.desenhar(tela, largura, altura)
@@ -288,14 +369,46 @@ class MesaRemotaDominoScreen:
 
         self._desenhar_bandeja_mao(tela, largura, altura)
 
-        if self.estado.get("resultado") is not None:
+        if self.fase_mao != FASE_JOGANDO:
+            self._desenhar_dica_escolha(tela, largura, altura)
+        elif self.estado.get("resultado") is not None:
             self._desenhar_resultado(tela, largura, altura)
         else:
             self._desenhar_controles(tela, largura, altura)
 
         if self.erro_acao:
             desenhar_badge(tela, largura // 2, altura - 140, self.erro_acao, CORAL,
-                            cor_texto=PANEL, tamanho_fonte=12, borda=INK)
+                            cor_texto=INK, tamanho_fonte=12, borda=INK)
+
+    def _desenhar_embaralhando(self, tela, mesa_rect):
+        t = self.timer_embaralhar
+        largura_peca, altura_peca = 30, 16
+        raio_base = min(mesa_rect.width, mesa_rect.height) * 0.22
+        for i in range(self._qtd_embaralhando):
+            angulo_base = (i / max(1, self._qtd_embaralhando)) * 2 * math.pi
+            raio = raio_base * (0.35 + 0.6 * ((i * 37) % 100) / 100)
+            vibra = math.sin(t * 18 + i) * 6
+            angulo = angulo_base + t * 3.0 + math.sin(t * 5 + i) * 0.3
+            x = mesa_rect.centerx + math.cos(angulo) * (raio + vibra) - largura_peca / 2
+            y = mesa_rect.centery + math.sin(angulo) * (raio + vibra) * 0.6 - altura_peca / 2
+            desenhar_peca_verso(tela, x, y, largura_peca, altura_peca)
+        desenhar_texto(tela, "Embaralhando...", mesa_rect.centerx, mesa_rect.centery,
+                        tamanho=13, cor=TEXT_MUTED, centralizado=True)
+
+    def _desenhar_escolhendo(self, tela, mesa_rect):
+        mouse_pos = pygame.mouse.get_pos()
+        for rect, _peca in self._rects_pilha_escolha(mesa_rect):
+            hover = rect.collidepoint(mouse_pos)
+            desenhar_peca_verso(tela, rect.x, rect.y, rect.width, rect.height, destaque=hover)
+
+    def _desenhar_dica_escolha(self, tela, largura, altura):
+        if self.fase_mao == FASE_EMBARALHANDO:
+            texto = "Embaralhando as peças..."
+        else:
+            faltam = len(self.pecas_para_escolher)
+            texto = f"Escolha suas peças — faltam {faltam}"
+        desenhar_texto(tela, texto, largura // 2, altura - 20,
+                        tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
     def _desenhar_topo(self, tela, largura):
         desenhar_badge(tela, largura // 2, 30, f"MÃO #{self.estado['mao_numero']}",
@@ -303,7 +416,7 @@ class MesaRemotaDominoScreen:
         meu = self._meu_jogador()
         pontuacao = meu["pontuacao"] if meu else 0
         desenhar_badge(tela, largura - 24, 30, f"VOCÊ: {pontuacao} pts",
-                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
     def _desenhar_botao_sair(self, tela):
@@ -440,8 +553,8 @@ class MesaRemotaDominoScreen:
         if self.peca_arrastando is not None:
             extremidades = self.estado.get("extremidades", {})
             for direcao, rect in self.zonas_drop_ativas.items():
-                pygame.draw.rect(tela, YELLOW, rect, border_radius=8)
-                pygame.draw.rect(tela, INK, rect, width=2, border_radius=8)
+                pygame.draw.rect(tela, YELLOW, rect, border_radius=0)
+                pygame.draw.rect(tela, INK, rect, width=2, border_radius=0)
                 valor = extremidades.get(direcao)
                 if valor is not None:
                     desenhar_texto(tela, str(valor), rect.centerx, rect.centery,
@@ -453,8 +566,8 @@ class MesaRemotaDominoScreen:
         if jogador["id"] == self.meu_id:
             return None, None, None
         if eh_vez_dele:
-            return "Pensando...", BLUE, PANEL
-        return f"{jogador['num_pecas']} peças", MINT, INK
+            return "Pensando...", BLUE, INK
+        return f"{jogador['num_pecas']} peças", MINT, SOMBRA
 
     def _desenhar_jogadores(self, tela, mesa_rect):
         jogadores = self.estado["jogadores"]
@@ -474,7 +587,7 @@ class MesaRemotaDominoScreen:
             if eh_vez_dele:
                 desenhar_glow_de_vez(tela, x, y, 46, 64, self.tempo_decorrido)
 
-            desenhar_painel(tela, painel, cor=PANEL, radius=16, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_eu else PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
             desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
@@ -493,6 +606,13 @@ class MesaRemotaDominoScreen:
         meu = self._meu_jogador()
         if meu is None:
             return
+
+        if self.fase_mao != FASE_JOGANDO:
+            reveladas = [p for p in self._minha_mao_pecas() if p not in self.pecas_para_escolher]
+            for rect, peca in self._rects_mao_pecas(reveladas):
+                desenhar_peca(tela, rect.x, rect.y, rect.width, rect.height, peca.a, peca.b, vertical=True)
+            return
+
         eh_minha_vez = self._eh_minha_vez()
         jogaveis = {p for p, _direcao in self._minhas_jogadas_possiveis()} if eh_minha_vez else set()
 
@@ -544,7 +664,7 @@ class MesaRemotaDominoScreen:
         n_linhas = 1 + len(resultado["detalhes"])
         painel = pygame.Rect(0, 0, 480, 130 + 26 * n_linhas)
         painel.center = (largura // 2, altura - 200)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "RESULTADO DA MAO", painel.centerx, painel.y + 24,
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
@@ -575,22 +695,22 @@ class MesaRemotaDominoScreen:
 
         painel = pygame.Rect(0, 0, 440, 200)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
         desenhar_texto(tela, "Sala encerrada", painel.centerx, painel.y + 50,
                         tamanho=26, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, self.mensagem_final, painel.centerx, painel.y + 100,
                         tamanho=13, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)
 
     def _desenhar_tela_final(self, tela, largura, altura):
         painel = pygame.Rect(0, 0, 440, 220)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
                         tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, f"Vencedor: {self.vencedor_final}", painel.centerx, painel.y + 100,
                         tamanho=19, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)

@@ -12,7 +12,7 @@ from collections import deque
 
 import pygame
 from .ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL,
     desenhar_texto, desenhar_painel,
 )
 from .ui_widgets import CampoTexto
@@ -81,21 +81,21 @@ class ChatWidget:
         self.painel_rect.height = int(altura * PROPORCAO_ALTURA)
         self.painel_rect.width = min(LARGURA_PAINEL, largura - 20)
         self.painel_rect.topleft = (0, (altura - self.painel_rect.height) // 2)
-        desenhar_painel(tela, self.painel_rect, cor=PANEL, radius=18, deslocamento_sombra=(5, 5))
+        desenhar_painel(tela, self.painel_rect, cor=PANEL, radius=0, deslocamento_sombra=(5, 5))
 
         desenhar_texto(tela, "CHAT DA SALA", self.painel_rect.x + 18, self.painel_rect.y + 16,
                         tamanho=14, cor=INK, negrito=True)
 
         self.botao_fechar.topright = (self.painel_rect.right - 14, self.painel_rect.y + 12)
-        pygame.draw.rect(tela, CORAL, self.botao_fechar, border_radius=8)
-        pygame.draw.rect(tela, INK, self.botao_fechar, width=2, border_radius=8)
+        pygame.draw.rect(tela, CORAL, self.botao_fechar, border_radius=0)
+        pygame.draw.rect(tela, INK, self.botao_fechar, width=2, border_radius=0)
         desenhar_texto(tela, "x", self.botao_fechar.centerx, self.botao_fechar.centery - 9,
-                        tamanho=14, cor=PANEL, negrito=True, centralizado=True)
+                        tamanho=14, cor=INK, negrito=True, centralizado=True)
 
         area_msgs = pygame.Rect(self.painel_rect.x + 16, self.painel_rect.y + 46,
                                  self.painel_rect.width - 32, self.painel_rect.height - 106)
-        pygame.draw.rect(tela, BG, area_msgs, border_radius=10)
-        pygame.draw.rect(tela, INK, area_msgs, width=2, border_radius=10)
+        pygame.draw.rect(tela, BG, area_msgs, border_radius=0)
+        pygame.draw.rect(tela, INK, area_msgs, width=2, border_radius=0)
 
         largura_util = area_msgs.width - 20
         y = area_msgs.bottom - 22
@@ -115,11 +115,12 @@ class ChatWidget:
     def _desenhar_aba(self, tela, altura):
         self.aba_rect.midleft = (0, altura // 2)
         cor = YELLOW if self.tem_novas else PANEL
-        pygame.draw.rect(tela, INK, self.aba_rect.move(3, 3), border_radius=12)
-        pygame.draw.rect(tela, cor, self.aba_rect, border_radius=12)
-        pygame.draw.rect(tela, INK, self.aba_rect, width=3, border_radius=12)
+        cor_texto_aba = SOMBRA if self.tem_novas else INK
+        pygame.draw.rect(tela, INK, self.aba_rect.move(3, 3), border_radius=0)
+        pygame.draw.rect(tela, cor, self.aba_rect, border_radius=0)
+        pygame.draw.rect(tela, INK, self.aba_rect, width=3, border_radius=0)
         desenhar_texto(tela, "CHAT", self.aba_rect.centerx, self.aba_rect.centery - 8,
-                        tamanho=13, cor=INK, negrito=True, centralizado=True, familia="mono")
+                        tamanho=13, cor=cor_texto_aba, negrito=True, centralizado=True, familia="mono")
         if self.tem_novas:
             desenhar_texto(tela, "●", self.aba_rect.centerx, self.aba_rect.centery + 16,
                             tamanho=16, cor=CORAL, centralizado=True)

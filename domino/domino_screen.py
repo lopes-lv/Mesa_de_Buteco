@@ -16,16 +16,20 @@ direita, cima, baixo) a partir dela, não só esquerda/direita - ver
 """
 import math
 import queue
+import random
 from collections import deque
 
 import pygame
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
-    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar,
+    BG, PANEL, INK, SOMBRA, FELT, FELT_DARK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar, desenhar_mesa,
     desenhar_badge, desenhar_glow_de_vez,
 )
-from .domino_theme import desenhar_peca
-from .domino_logic import Peca, TIPO_HUMANO_REMOTO, BONUS_PASSE, DIRECOES
+from .domino_theme import desenhar_peca, desenhar_peca_verso
+from .domino_logic import (
+    Peca, TIPO_HUMANO_REMOTO, BONUS_PASSE, DIRECOES,
+    FASE_EMBARALHANDO, FASE_ESCOLHENDO, FASE_JOGANDO, DURACAO_EMBARALHAR,
+)
 from .domino_bot_ai import escolher_jogada_bot
 from core.chat_widget import ChatWidget
 from rede import protocolo
@@ -68,6 +72,16 @@ class DominoTableScreen:
         self.zonas_drop_ativas = {}   # direcao -> rect, só as legais pra peca_arrastando
         self._zonas_mesa = {}         # direcao -> rect, calculado a cada desenhar() (todas as ativas)
 
+        # Fase visual de início de mão (ver domino_logic.FASE_*) - puramente
+        # cosmética/local: `pecas_para_escolher` é uma cópia embaralhada da
+        # mão real (já conhecida por inteiro desde `iniciar_nova_mao`), e
+        # cada clique tira uma peça dela até esvaziar, sem tocar na mão de
+        # verdade (ver `_iniciar_fase_embaralhar`).
+        self.fase_mao = FASE_JOGANDO
+        self.timer_embaralhar = 0.0
+        self.pecas_para_escolher = []
+        self._qtd_embaralhando = 0
+
         self.botao_continuar = pygame.Rect(0, 0, 240, 56)
         self.botao_sair = pygame.Rect(0, 0, 110, 44)
         self.botao_passar = pygame.Rect(0, 0, 160, 52)
@@ -87,6 +101,19 @@ class DominoTableScreen:
         self.historico.clear()
         self._enviar_maos_privadas()
         self._broadcast_estado()
+        self._iniciar_fase_embaralhar()
+
+    def _iniciar_fase_embaralhar(self):
+        self.timer_embaralhar = 0.0
+        if self.app.settings.selecao_automatica_pecas:
+            self.fase_mao = FASE_JOGANDO
+            self.pecas_para_escolher = []
+            return
+        self.fase_mao = FASE_EMBARALHANDO
+        self._qtd_embaralhando = sum(len(j.mao) for j in self.mesa.jogadores)
+        humano = self._jogador(self.id_humano)
+        self.pecas_para_escolher = list(humano.mao)
+        random.shuffle(self.pecas_para_escolher)
 
     def _jogador(self, id_jogador):
         return next(j for j in self.mesa.jogadores if j.id == id_jogador)
@@ -245,6 +272,14 @@ class DominoTableScreen:
                 self._sair_para_menu()
                 return
 
+        if self.fase_mao == FASE_EMBARALHANDO:
+            return
+
+        if self.fase_mao == FASE_ESCOLHENDO:
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                self._clicar_pilha_escolha(evento.pos)
+            return
+
         if self.mesa.resultado_mao is not None:
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                 if self.botao_continuar.collidepoint(evento.pos):
@@ -297,12 +332,29 @@ class DominoTableScreen:
         if direcao_escolhida is not None:
             self._jogar(self._jogador(self.id_humano), peca, direcao_escolhida)
 
+    def _clicar_pilha_escolha(self, pos_mouse):
+        for rect, peca in self._rects_pilha_escolha(self._mesa_rect()):
+            if rect.collidepoint(pos_mouse):
+                self.pecas_para_escolher.remove(peca)
+                if not self.pecas_para_escolher:
+                    self.fase_mao = FASE_JOGANDO
+                return
+
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
         self.tempo_decorrido += dt
 
         if self.sala_rede is not None:
             self._drenar_mensagens_rede()
+
+        if self.fase_mao == FASE_EMBARALHANDO:
+            self.timer_embaralhar += dt
+            if self.timer_embaralhar >= DURACAO_EMBARALHAR:
+                self.fase_mao = FASE_ESCOLHENDO
+            return
+
+        if self.fase_mao == FASE_ESCOLHENDO:
+            return
 
         if self.app.jogo_finalizado or self.mesa.resultado_mao is not None:
             return
@@ -333,18 +385,26 @@ class DominoTableScreen:
             self.timer_bot = 0.0
 
     # ---------------------------------------------------------------- Desenho
+    def _mesa_rect(self):
+        largura, altura = pygame.display.get_surface().get_size()
+        mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
+        mesa_rect.center = (largura // 2, int(altura * 0.36))
+        return mesa_rect
+
     def desenhar(self, tela):
         largura, altura = tela.get_size()
         tela.fill(BG)
 
-        mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
-        mesa_rect.center = (largura // 2, int(altura * 0.36))
-        pygame.draw.rect(tela, INK, mesa_rect.move(8, 8), border_radius=28)
-        pygame.draw.rect(tela, (223, 219, 205), mesa_rect, border_radius=28)
-        pygame.draw.rect(tela, INK, mesa_rect, width=5, border_radius=28)
+        mesa_rect = self._mesa_rect()
+        desenhar_mesa(tela, mesa_rect)
 
         self._desenhar_topo(tela, largura)
-        self._desenhar_centro_mesa(tela, mesa_rect)
+        if self.fase_mao == FASE_EMBARALHANDO:
+            self._desenhar_embaralhando(tela, mesa_rect)
+        elif self.fase_mao == FASE_ESCOLHENDO:
+            self._desenhar_escolhendo(tela, mesa_rect)
+        else:
+            self._desenhar_centro_mesa(tela, mesa_rect)
         self._desenhar_jogadores(tela, mesa_rect)
         self._desenhar_historico(tela, largura, altura)
 
@@ -358,17 +418,68 @@ class DominoTableScreen:
         self._desenhar_botao_sair(tela)
         self._desenhar_bandeja_mao(tela, largura, altura)
 
-        if self.mesa.resultado_mao is not None:
+        if self.fase_mao != FASE_JOGANDO:
+            self._desenhar_dica_escolha(tela, largura, altura)
+        elif self.mesa.resultado_mao is not None:
             self._desenhar_resultado(tela, largura, altura)
         else:
             self._desenhar_controles(tela, largura, altura)
+
+    def _rects_pilha_escolha(self, mesa_rect):
+        largura_peca, altura_peca = 40, 80
+        espaco = 10
+        pecas = self.pecas_para_escolher
+        n = len(pecas)
+        por_linha = min(7, max(1, n))
+        linhas = math.ceil(n / por_linha) if n else 0
+        total_largura = por_linha * largura_peca + (por_linha - 1) * espaco
+        total_altura = linhas * altura_peca + max(0, linhas - 1) * espaco
+        x0 = mesa_rect.centerx - total_largura // 2
+        y0 = mesa_rect.centery - total_altura // 2
+        pares = []
+        for i, peca in enumerate(pecas):
+            linha, col = divmod(i, por_linha)
+            rect = pygame.Rect(x0 + col * (largura_peca + espaco), y0 + linha * (altura_peca + espaco),
+                                largura_peca, altura_peca)
+            pares.append((rect, peca))
+        return pares
+
+    def _desenhar_embaralhando(self, tela, mesa_rect):
+        t = self.timer_embaralhar
+        largura_peca, altura_peca = 30, 16
+        raio_base = min(mesa_rect.width, mesa_rect.height) * 0.22
+        for i in range(self._qtd_embaralhando):
+            angulo_base = (i / max(1, self._qtd_embaralhando)) * 2 * math.pi
+            raio = raio_base * (0.35 + 0.6 * ((i * 37) % 100) / 100)
+            vibra = math.sin(t * 18 + i) * 6
+            angulo = angulo_base + t * 3.0 + math.sin(t * 5 + i) * 0.3
+            x = mesa_rect.centerx + math.cos(angulo) * (raio + vibra) - largura_peca / 2
+            y = mesa_rect.centery + math.sin(angulo) * (raio + vibra) * 0.6 - altura_peca / 2
+            desenhar_peca_verso(tela, x, y, largura_peca, altura_peca)
+        desenhar_texto(tela, "Embaralhando...", mesa_rect.centerx, mesa_rect.centery,
+                        tamanho=13, cor=TEXT_MUTED, centralizado=True)
+
+    def _desenhar_escolhendo(self, tela, mesa_rect):
+        mouse_pos = pygame.mouse.get_pos()
+        for rect, _peca in self._rects_pilha_escolha(mesa_rect):
+            hover = rect.collidepoint(mouse_pos)
+            desenhar_peca_verso(tela, rect.x, rect.y, rect.width, rect.height, destaque=hover)
+
+    def _desenhar_dica_escolha(self, tela, largura, altura):
+        if self.fase_mao == FASE_EMBARALHANDO:
+            texto = "Embaralhando as peças..."
+        else:
+            faltam = len(self.pecas_para_escolher)
+            texto = f"Escolha suas peças — faltam {faltam}"
+        desenhar_texto(tela, texto, largura // 2, altura - 20,
+                        tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
     def _desenhar_topo(self, tela, largura):
         desenhar_badge(tela, largura // 2, 30, f"MÃO #{self.mesa.mao_numero}",
                         PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
         humano = self._jogador(self.id_humano)
         desenhar_badge(tela, largura - 24, 30, f"VOCÊ: {humano.pontuacao} pts",
-                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
     def _desenhar_botao_sair(self, tela):
@@ -507,8 +618,8 @@ class DominoTableScreen:
 
         if self.peca_arrastando is not None:
             for direcao, rect in self.zonas_drop_ativas.items():
-                pygame.draw.rect(tela, YELLOW, rect, border_radius=8)
-                pygame.draw.rect(tela, INK, rect, width=2, border_radius=8)
+                pygame.draw.rect(tela, YELLOW, rect, border_radius=0)
+                pygame.draw.rect(tela, INK, rect, width=2, border_radius=0)
                 valor = self.mesa.extremidades.get(direcao)
                 if valor is not None:
                     desenhar_texto(tela, str(valor), rect.centerx, rect.centery,
@@ -527,8 +638,8 @@ class DominoTableScreen:
         if jogador.id == self.id_humano:
             return None, None, None
         if eh_vez_dele:
-            return "Pensando...", BLUE, PANEL
-        return f"{len(jogador.mao)} peças", MINT, INK
+            return "Pensando...", BLUE, INK
+        return f"{len(jogador.mao)} peças", MINT, SOMBRA
 
     def _desenhar_jogadores(self, tela, mesa_rect):
         n = len(self.mesa.jogadores)
@@ -547,7 +658,7 @@ class DominoTableScreen:
             if eh_vez_dele:
                 desenhar_glow_de_vez(tela, x, y, 46, 64, self.tempo_decorrido)
 
-            desenhar_painel(tela, painel, cor=PANEL, radius=16, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_humano else PALETA_AVATAR[jogador.id % len(PALETA_AVATAR)]
             desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, self._iniciais(jogador.nome))
@@ -578,22 +689,32 @@ class DominoTableScreen:
         return posicoes
 
     # ---------------------------------------------------------------- Bandeja da mão
-    def _rects_mao_humano(self, humano):
+    def _rects_mao(self, pecas):
         largura_peca, altura_peca = TAMANHO_PECA_MAO
         espaco = 8
-        n = len(humano.mao)
+        n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
         largura_tela, altura_tela = pygame.display.get_surface().get_size()
         x0 = largura_tela // 2 - total_largura // 2
         y0 = altura_tela - altura_peca - 40
         pares = []
-        for i, peca in enumerate(humano.mao):
+        for i, peca in enumerate(pecas):
             rect = pygame.Rect(x0 + i * (largura_peca + espaco), y0, largura_peca, altura_peca)
             pares.append((rect, peca))
         return pares
 
+    def _rects_mao_humano(self, humano):
+        return self._rects_mao(humano.mao)
+
     def _desenhar_bandeja_mao(self, tela, largura, altura):
         humano = self._jogador(self.id_humano)
+
+        if self.fase_mao != FASE_JOGANDO:
+            reveladas = [p for p in humano.mao if p not in self.pecas_para_escolher]
+            for rect, peca in self._rects_mao(reveladas):
+                desenhar_peca(tela, rect.x, rect.y, rect.width, rect.height, peca.a, peca.b, vertical=True)
+            return
+
         jogador_da_vez = self.mesa.jogador_da_vez()
         eh_vez_do_humano = jogador_da_vez is not None and jogador_da_vez.id == self.id_humano
         jogaveis = {p for p, _direcao in self.mesa.jogadas_possiveis(humano)} if eh_vez_do_humano else set()
@@ -648,7 +769,7 @@ class DominoTableScreen:
         n_linhas = 1 + len(resultado["detalhes"])
         painel = pygame.Rect(0, 0, 480, 110 + 26 * n_linhas)
         painel.center = (largura // 2, altura - 200)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "RESULTADO DA MÃO", painel.centerx, painel.y + 24,
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
@@ -681,11 +802,11 @@ class DominoTableScreen:
 
         painel = pygame.Rect(0, 0, 440, 220)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
                         tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, f"Vencedor: {self.app.nome_vencedor}", painel.centerx, painel.y + 100,
                         tamanho=19, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)

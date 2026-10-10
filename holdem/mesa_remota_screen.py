@@ -13,10 +13,10 @@ import queue
 import pygame
 from core.deck import Card
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
-    desenhar_kbd, desenhar_glow_de_vez,
+    desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie, desenhar_mesa_oval_recorte,
 )
 from core.chat_widget import ChatWidget
 from rede import protocolo
@@ -25,6 +25,8 @@ CARTA_OUTRO = (46, 64)
 CARTA_COMUNITARIA = (64, 90)
 CARTA_PROPRIA = (100, 140)
 DESLOCAMENTO_CARTAS_PROPRIAS = 40
+
+ANIM_CROUPIER_DURACAO = 0.9
 
 PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
 
@@ -54,7 +56,7 @@ def _posicoes_assentos(mesa_rect, n_jogadores):
     posicoes = []
     for i in range(n_jogadores):
         ang = math.radians(angulos[i])
-        rx = mesa_rect.width // 2 + 70
+        rx = mesa_rect.width // 2 + 45
         ry = mesa_rect.height // 2 + 70
         x = mesa_rect.centerx + int(rx * math.cos(ang))
         y = mesa_rect.centery + int(ry * math.sin(ang))
@@ -77,7 +79,11 @@ class MesaRemotaScreen:
 
         self.estado = None
         self.minha_mao = []
+        self.maos_espectador = {}  # id (str) -> cartas de todos, só quando fold/eliminado
         self.tempo_decorrido = 0.0
+        self.anim_cropie_inicio = None
+        self._mao_numero_visto = None
+        self._estagio_visto = None
 
         self.erro_acao = None
         self.tempo_erro_acao = 0.0
@@ -138,8 +144,17 @@ class MesaRemotaScreen:
             tipo = msg.get("tipo")
             if tipo == protocolo.ESTADO:
                 self.estado = msg
+                if msg.get("mao_numero") != self._mao_numero_visto:
+                    self.maos_espectador = {}
+                estagio = (msg.get("mao_numero"), len(msg.get("comunitarias", [])))
+                if estagio != self._estagio_visto:
+                    self._estagio_visto = estagio
+                    self.anim_cropie_inicio = self.tempo_decorrido
+                self._mao_numero_visto = msg.get("mao_numero")
                 if not self._eh_minha_vez():
                     self.modo_raise = False
+            elif tipo == protocolo.MAOS_ESPECTADOR:
+                self.maos_espectador = msg.get("maos", {})
             elif tipo == protocolo.SUA_MAO:
                 self.minha_mao = msg.get("cartas", [])
             elif tipo == protocolo.ERRO_ACAO:
@@ -251,11 +266,12 @@ class MesaRemotaScreen:
 
         mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.55))
         mesa_rect.center = (largura // 2, int(altura * 0.42))
-        desenhar_mesa(tela, mesa_rect)
+        recorte = desenhar_mesa_oval_recorte(tela, mesa_rect)
 
         self._desenhar_topo(tela, largura)
         self._desenhar_comunitarias(tela, mesa_rect)
         self._desenhar_pote(tela, mesa_rect)
+        self._desenhar_croupie(tela, recorte)
         self._desenhar_jogadores(tela, mesa_rect, largura, altura)
         self._desenhar_historico(tela, largura, altura)
         self._desenhar_botao_sair(tela)
@@ -273,7 +289,7 @@ class MesaRemotaScreen:
 
         if self.erro_acao:
             desenhar_badge(tela, largura // 2, altura - 140, self.erro_acao, CORAL,
-                            cor_texto=PANEL, tamanho_fonte=12, borda=INK)
+                            cor_texto=INK, tamanho_fonte=12, borda=INK)
 
     def _desenhar_topo(self, tela, largura):
         sb, bb = self.estado["blinds"]
@@ -282,7 +298,7 @@ class MesaRemotaScreen:
         meu = self._meu_jogador()
         stack = meu["stack"] if meu else 0
         desenhar_badge(tela, largura - 24, 30, f"VOCÊ: {stack}",
-                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
     def _desenhar_botao_sair(self, tela):
@@ -305,11 +321,25 @@ class MesaRemotaScreen:
                 desenhar_carta(tela, x, y0, largura_carta, altura_carta, cartas[i])
             else:
                 rect_vazio = pygame.Rect(x, y0, largura_carta, altura_carta)
-                pygame.draw.rect(tela, (255, 255, 255), rect_vazio, width=2, border_radius=10)
+                pygame.draw.rect(tela, (255, 255, 255), rect_vazio, width=2, border_radius=0)
+
+    def _desenhar_croupie(self, tela, recorte):
+        progresso = 0.0
+        if self.anim_cropie_inicio is not None:
+            decorrido = self.tempo_decorrido - self.anim_cropie_inicio
+            if decorrido < ANIM_CROUPIER_DURACAO:
+                progresso = decorrido / ANIM_CROUPIER_DURACAO
+            else:
+                self.anim_cropie_inicio = None
+        desenhar_cropie(tela, recorte.centerx, recorte.top + 22, progresso)
+
+    def _sou_espectador(self):
+        meu = self._meu_jogador()
+        return meu is not None and (meu["eliminado"] or meu["foldou"])
 
     def _desenhar_pote(self, tela, mesa_rect):
         desenhar_badge(tela, mesa_rect.centerx, mesa_rect.centery + 56, f"POTE: {self.estado['pote']}",
-                        YELLOW, cor_texto=INK, tamanho_fonte=16, familia="mono", borda=INK)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=16, familia="mono", borda=INK)
 
     def _status_jogador(self, jogador, eh_vez_dele):
         if jogador["eliminado"]:
@@ -319,11 +349,11 @@ class MesaRemotaScreen:
         if jogador["foldou"]:
             return "Fold", LOCKED, TEXT_MUTED
         if jogador["all_in"]:
-            return "All-in", PURPLE, PANEL
+            return "All-in", PURPLE, INK
         if eh_vez_dele:
-            return "Pensando...", BLUE, PANEL
+            return "Pensando...", BLUE, INK
         if jogador["aposta_rodada"] > 0:
-            return f"Apostou {jogador['aposta_rodada']}", MINT, INK
+            return f"Apostou {jogador['aposta_rodada']}", MINT, SOMBRA
         return None, None, None
 
     def _desenhar_jogadores(self, tela, mesa_rect, largura, altura):
@@ -331,6 +361,7 @@ class MesaRemotaScreen:
         n = len(jogadores)
         posicoes = _posicoes_assentos(mesa_rect, n)
         jogador_da_vez_id = self.estado.get("jogador_da_vez_id")
+        espectador = self._sou_espectador()
 
         for indice, (x, y) in enumerate(posicoes):
             jogador = jogadores[indice]
@@ -355,7 +386,12 @@ class MesaRemotaScreen:
                 continue
 
             x0 = x - total_largura // 2
-            if eh_eu:
+            cartas_espectador = self.maos_espectador.get(str(jogador["id"])) if espectador else None
+            if cartas_espectador:
+                for i, (valor, naipe) in enumerate(cartas_espectador):
+                    desenhar_carta(tela, x0 + i * (largura_carta + espaco_cartas), y_cartas - altura_carta // 2,
+                                    largura_carta, altura_carta, carta=Card(valor, naipe))
+            elif eh_eu:
                 cartas = [Card(valor, naipe) for valor, naipe in self.minha_mao]
                 for i in range(2):
                     carta = cartas[i] if i < len(cartas) else None
@@ -378,7 +414,7 @@ class MesaRemotaScreen:
         painel.bottom = y - altura_carta // 2 - 14
 
         fundo = LOCKED if (jogador["foldou"] or jogador["eliminado"]) else PANEL
-        desenhar_painel(tela, painel, cor=fundo, radius=16, deslocamento_sombra=(3, 3))
+        desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
 
         desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
 
@@ -399,7 +435,7 @@ class MesaRemotaScreen:
         painel.right = x - total_largura // 2 - 26
         painel.centery = y
 
-        desenhar_painel(tela, painel, cor=PANEL, radius=16, deslocamento_sombra=(3, 3))
+        desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
         desenhar_texto(tela, jogador["nome"], painel.centerx, painel.y + 18, tamanho=15,
                         cor=INK, negrito=True, centralizado=True)
         desenhar_pilha_fichas(tela, painel.centerx - 30, painel.y + 46, jogador["stack"], raio=8)
@@ -409,14 +445,14 @@ class MesaRemotaScreen:
                             cor_texto=TEXT_MUTED, tamanho_fonte=9)
         elif jogador["all_in"]:
             desenhar_badge(tela, painel.centerx, painel.bottom - 12, "All-in", PURPLE,
-                            cor_texto=PANEL, tamanho_fonte=9)
+                            cor_texto=INK, tamanho_fonte=9)
 
     def _desenhar_historico(self, tela, largura, altura):
         altura_linha = 26
         altura_painel = 44 + HIST_MAX_LINHAS * altura_linha
         painel = pygame.Rect(0, 0, HIST_LARGURA, altura_painel)
         painel.bottomright = (largura - HIST_MARGEM, altura - HIST_MARGEM)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20, deslocamento_sombra=(5, 5))
+        desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(5, 5))
 
         desenhar_texto(tela, "HISTÓRICO DA RODADA", painel.x + 18, painel.y + 14,
                         tamanho=12, cor=INK, negrito=True)
@@ -425,7 +461,7 @@ class MesaRemotaScreen:
 
         y = painel.y + 42
         for texto in self.estado.get("historico", [])[-HIST_MAX_LINHAS:]:
-            pygame.draw.rect(tela, TEXT_MUTED, (painel.x + 16, y + 4, 4, altura_linha - 10), border_radius=2)
+            pygame.draw.rect(tela, TEXT_MUTED, (painel.x + 16, y + 4, 4, altura_linha - 10), border_radius=0)
             desenhar_texto(tela, texto[:34], painel.x + 26, y + int(altura_linha * 0.5),
                             tamanho=12, cor=INK)
             y += altura_linha
@@ -433,7 +469,7 @@ class MesaRemotaScreen:
     def _desenhar_resultado(self, tela, largura, altura, resultados):
         painel = pygame.Rect(0, 0, 480, 130 + 30 * len(resultados))
         painel.center = (largura // 2, altura - 160)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
         desenhar_texto(tela, "RESULTADO DA MÃO", painel.centerx, painel.y + 24,
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
         for i, r in enumerate(resultados):
@@ -450,25 +486,25 @@ class MesaRemotaScreen:
 
         painel = pygame.Rect(0, 0, 440, 200)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
         desenhar_texto(tela, "Sala encerrada", painel.centerx, painel.y + 50,
                         tamanho=26, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, self.mensagem_final, painel.centerx, painel.y + 100,
                         tamanho=13, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)
 
     def _desenhar_tela_final(self, tela, largura, altura):
         painel = pygame.Rect(0, 0, 440, 220)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
                         tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, f"Vencedor: {self.vencedor_final}", painel.centerx, painel.y + 100,
                         tamanho=19, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)
 
     def _desenhar_controles(self, tela, largura, altura):
         meu = self._meu_jogador()
@@ -476,6 +512,16 @@ class MesaRemotaScreen:
             return
         eh_minha_vez = self._eh_minha_vez()
         a_pagar = max(0, self.estado.get("aposta_alvo", 0) - meu["aposta_rodada"])
+
+        if self._sou_espectador():
+            motivo = "Sem fichas" if meu["eliminado"] else "Você deu fold"
+            desenhar_badge(tela, largura // 2, altura - 90, f"ESPECTADOR — {motivo}: vendo as cartas de todos",
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=14, borda=INK)
+            vez_id = self.estado.get("jogador_da_vez_id")
+            nome_vez = next((j["nome"] for j in self.estado["jogadores"] if j["id"] == vez_id), "-")
+            desenhar_badge(tela, largura // 2, 58, f"Vez de: {nome_vez}",
+                            PANEL, cor_texto=INK, tamanho_fonte=12, borda=INK)
+            return
 
         base_y = altura - 90
         self.botao_fold.midleft = (largura // 2 - 278, base_y)
@@ -488,18 +534,18 @@ class MesaRemotaScreen:
         mostrar_atalhos = self.app.settings.mostrar_atalhos
 
         desenhar_botao(tela, self.botao_fold, "Fold", hover=ativo and self.botao_fold.collidepoint(mouse_pos),
-                        ativo=ativo, cor=CORAL, cor_texto=PANEL)
+                        ativo=ativo, cor=CORAL, cor_texto=INK)
         if mostrar_atalhos:
             desenhar_kbd(tela, self.botao_fold.right - 12, self.botao_fold.bottom - 12, "F", ancorar="bottomright")
 
         desenhar_botao(tela, self.botao_call, texto_call, hover=ativo and self.botao_call.collidepoint(mouse_pos),
-                        ativo=ativo, cor=BLUE, cor_texto=PANEL)
+                        ativo=ativo, cor=BLUE, cor_texto=INK)
         if mostrar_atalhos:
             desenhar_kbd(tela, self.botao_call.right - 12, self.botao_call.bottom - 12, "C", ancorar="bottomright")
 
         pode_raise = ativo and meu["stack"] > a_pagar
         desenhar_botao(tela, self.botao_raise, "Raise", hover=pode_raise and self.botao_raise.collidepoint(mouse_pos),
-                        ativo=pode_raise, cor=MINT, cor_texto=INK)
+                        ativo=pode_raise, cor=MINT, cor_texto=SOMBRA)
         if mostrar_atalhos:
             desenhar_kbd(tela, self.botao_raise.right - 12, self.botao_raise.bottom - 12, "R", ancorar="bottomright")
 
@@ -515,7 +561,7 @@ class MesaRemotaScreen:
     def _desenhar_slider_raise(self, tela, largura, altura, meu, a_pagar):
         painel = pygame.Rect(0, 0, 420, 140)
         painel.center = (largura // 2, altura - 180)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         maximo = max(1, meu["stack"] - a_pagar)
         self.valor_raise_atual = min(self.valor_raise_atual, maximo)
@@ -525,15 +571,15 @@ class MesaRemotaScreen:
 
         self.slider_rect.midleft = (painel.x + 30, painel.y + 62)
         self.slider_rect.width = painel.width - 60
-        pygame.draw.rect(tela, LOCKED, self.slider_rect, border_radius=7)
-        pygame.draw.rect(tela, INK, self.slider_rect, 2, border_radius=7)
+        pygame.draw.rect(tela, LOCKED, self.slider_rect, border_radius=0)
+        pygame.draw.rect(tela, INK, self.slider_rect, 2, border_radius=0)
 
         proporcao = self.valor_raise_atual / maximo if maximo > 0 else 0
         alca_x = self.slider_rect.x + int(proporcao * self.slider_rect.width)
         self.slider_alca.center = (alca_x, self.slider_rect.centery)
-        pygame.draw.rect(tela, INK, self.slider_alca.move(2, 2), border_radius=6)
-        pygame.draw.rect(tela, MINT, self.slider_alca, border_radius=6)
-        pygame.draw.rect(tela, INK, self.slider_alca, 2, border_radius=6)
+        pygame.draw.rect(tela, INK, self.slider_alca.move(2, 2), border_radius=0)
+        pygame.draw.rect(tela, MINT, self.slider_alca, border_radius=0)
+        pygame.draw.rect(tela, INK, self.slider_alca, 2, border_radius=0)
 
         desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED, familia="mono")
         desenhar_texto(tela, f"{maximo} (all-in)", self.slider_rect.right, self.slider_rect.y + 22,

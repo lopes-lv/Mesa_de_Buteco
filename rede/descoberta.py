@@ -6,6 +6,7 @@ import json
 import random
 import socket
 import threading
+import time
 
 from .protocolo import PORTA_UDP_DESCOBERTA
 
@@ -84,32 +85,44 @@ class ServidorDescoberta(threading.Thread):
                 pass
 
 
-def procurar_sala_na_rede(codigo, porta_udp=PORTA_UDP_DESCOBERTA, timeout=3.0):
+def procurar_sala_na_rede(codigo, porta_udp=PORTA_UDP_DESCOBERTA, timeout=4.0, intervalo_reenvio=0.5):
     """
     Cliente: manda um broadcast UDP perguntando pelo codigo e aguarda ate
-    `timeout` segundos por uma resposta. Retorna dict {ip, porta_tcp,
-    anfitriao} ou None se ninguem respondeu a tempo (rede sem broadcast,
-    firewall, ou codigo errado) - nesse caso a tela de entrada deve deixar
-    o usuario digitar IP:porta manualmente.
+    `timeout` segundos por uma resposta, reenviando o pedido a cada
+    `intervalo_reenvio` segundos enquanto isso - um unico pacote broadcast
+    (pedido ou resposta) se perder no caminho e uma ocorrencia comum em
+    Wi-Fi/LAN, e sem essa retransmissao a sala "some" pra quem digitou o
+    codigo certo mas teve azar com a rede (ver MELHORIAS.md). Retorna dict
+    {ip, porta_tcp, anfitriao} ou None se ninguem respondeu a tempo (rede sem
+    broadcast, firewall, ou codigo errado) - nesse caso a tela de entrada
+    deve deixar o usuario digitar IP:porta manualmente.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.settimeout(timeout)
+    sock.settimeout(intervalo_reenvio)
 
     pedido = json.dumps({"tipo": PROCURAR_SALA, "codigo": codigo}).encode("utf-8")
-    try:
-        sock.sendto(pedido, ("255.255.255.255", porta_udp))
-    except OSError:
+
+    def _mandar():
+        try:
+            sock.sendto(pedido, ("255.255.255.255", porta_udp))
+            return True
+        except OSError:
+            return False
+
+    if not _mandar():
         sock.close()
         return None
 
+    limite = time.monotonic() + timeout
     try:
-        while True:
+        while time.monotonic() < limite:
             try:
                 dados, endereco = sock.recvfrom(4096)
             except socket.timeout:
-                return None
+                _mandar()  # sem resposta ainda dentro do intervalo - tenta de novo
+                continue
             try:
                 resposta = json.loads(dados.decode("utf-8"))
             except (ValueError, UnicodeDecodeError):
@@ -120,5 +133,6 @@ def procurar_sala_na_rede(codigo, porta_udp=PORTA_UDP_DESCOBERTA, timeout=3.0):
                     "porta_tcp": resposta.get("porta_tcp"),
                     "anfitriao": resposta.get("anfitriao", "?"),
                 }
+        return None
     finally:
         sock.close()

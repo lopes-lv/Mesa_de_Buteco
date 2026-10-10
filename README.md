@@ -3,9 +3,9 @@
 Jogo de cartas/peças em Python + Pygame, com três modos — **Texas Hold'em**,
 **Pif Paf** (ver [PIF_PAF_GUIA.md](PIF_PAF_GUIA.md)) e **Dominó** — jogáveis
 solo contra bots ou em **multiplayer local** (mesma rede Wi-Fi/LAN, ver
-[MULTIPLAYER_PLANO.md](MULTIPLAYER_PLANO.md)), com estética "Neobrutalismo
-Suave / Dashboard Analítico" (ver `design/01_neobrutalismo_suave/`)
-desenhada 100% via `pygame.draw` (sem imagens externas).
+[MULTIPLAYER_PLANO.md](MULTIPLAYER_PLANO.md)), com estética "Pixel Art Retrô
+CRT" (ver `design/07_pixel_retro_crt/`) desenhada 100% via `pygame.draw`
+(sem imagens externas).
 
 ## Estrutura do projeto
 
@@ -20,7 +20,7 @@ poker_game/
 ├── core/                           # Base compartilhada pelos 3 modos
 │   ├── deck.py                     # Cartas e baralho
 │   ├── settings.py                 # Configurações de sessão (em memória)
-│   ├── ui_theme.py                 # Biblioteca de desenho neobrutalista (ativa)
+│   ├── ui_theme.py                 # Biblioteca de desenho Pixel Art Retrô CRT (ativa)
 │   ├── ui_widgets.py               # Widgets pequenos reutilizáveis (CampoTexto)
 │   ├── ui_pixelart.py              # Estética pixel art anterior (não usada mais;
 │   │                                # mantida de referência para uma eventual

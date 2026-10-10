@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Python + Pygame desktop card/tile game ("Solo vs Bots") with three playable modes — Texas Hold'em, Pif Paf, and Dominó — sharing one tournament/elimination structure and one visual style ("Neobrutalismo Suave / Dashboard Analítico") drawn entirely with `pygame.draw` (no external card/tile images). Docs are in Portuguese; match that when editing them.
+Python + Pygame desktop card/tile game ("Solo vs Bots") with three playable modes — Texas Hold'em, Pif Paf, and Dominó — sharing one tournament/elimination structure and one visual style ("Pixel Art Retrô CRT" — dark arcade palette, square corners, thick borders, hard offset shadows, monospace type, a scanline overlay) drawn entirely with `pygame.draw` (no external card/tile images). The style was "Neobrutalismo Suave / Dashboard Analítico" (light, rounded) before; `core/ui_theme.py`'s color/shape constants changed but every other module's call sites (buttons, panels, badges, avatars) did not, so touching the palette again means re-auditing which backgrounds need light vs dark text (see the comments around `_FUNDOS_CLAROS` in `ui_theme.py`). Docs are in Portuguese; match that when editing them.
 
 ## Commands
 
@@ -53,14 +53,14 @@ All three share `core/` (`deck.py` — cards, Hold'em/Pif Paf only; `ui_theme.py
 
 **Deprecated code kept for reference.** `core/ui_pixelart.py` (old pixel-art rendering) and `assets/assets.png` are unused by the current game (replaced by `core/ui_theme.py`'s vector style) but intentionally kept — see `GDD.md` §3.2 for the rationale (possible future reintroduction as an alternate deck skin). Don't delete them without checking with the user; don't wire new features into them either.
 
-**`design/` directory.** Contains standalone HTML mockups + technical guides for visual styles that were evaluated before implementation. Only `design/01_neobrutalismo_suave/` was actually implemented in Pygame; `03_casino_minimalista/` and `05_cozy_flat/` are validated-but-unbuilt alternatives. These are design references, not part of the running app.
+**`design/` directory.** Contains standalone HTML mockups + technical guides for visual styles that were evaluated before implementation, plus a design-system reference. `design/07_pixel_retro_crt/` is the style actually implemented in Pygame (`core/ui_theme.py`, current); `design/01_neobrutalismo_suave/` was the previous implemented style, now superseded; `03_casino_minimalista/`, `05_cozy_flat/`, `02_dark_glassmorphism/`, `04_terminal_tatico/`, `06_art_deco_cassino/`, `08_synthwave_neon/`, `09_papel_vintage/`, `10_editorial_suico/`, and `11_zen_japones/` are validated-but-unbuilt alternatives (`design/index.html` is a small gallery over the last four, the ones with a full set of mockup screens). `design/baralhos/` has 8 standalone card-back/face skins (one per unbuilt style above, including a `pixel_crt` one) with their own `GUIA_BARALHOS.md` on wiring one into `ui_theme.desenhar_carta` — not yet integrated; the live "Padrão" card look in `ui_theme.py` was built independently, matching the current Pixel Art Retrô CRT style directly rather than importing that skin module. `design/avaliacao/AVALIACAO.md` is a pre-redesign visual review of the old Neobrutalismo screens, now mostly superseded (its accent-glyph and card-slot-outline findings were fixed as part of the Pixel Art reskin). None of `design/` is imported by the running app.
 
 ## Key docs
 
 - `README.md` — setup, project layout, implemented rules summary, PyInstaller packaging.
 - `GDD.md` — living game design document (modes, economy, planned features).
 - `PIF_PAF_GUIA.md` — Pif Paf rules research and this project's specific design decisions/deviations (e.g. "a louca" rule is explicitly out of scope; "Mão Fechada" and the "knock by discarding the leftover card" fix are documented here with rationale).
-- `MELHORIAS.md` — project backlog/changelog of ideas and completed work, organized by theme.
+- `lista_tarefa.md` — project backlog/changelog of ideas and completed work, organized by theme (Tarefas Pendentes / Tarefas Concluídas).
 - `MULTIPLAYER_PLANO.md` — architecture plan for local-network multiplayer via a host-authoritative model, implemented for all three modes (`rede/` package, `menus/multiplayer_screens.py`, one `<mode>/mesa_remota_*_screen.py` per mode, `core/chat_widget.py` for the in-session text chat). Read this before touching any networking code — it specifies the protocol, threading model, and which files/methods it touches.
 
-When making non-trivial gameplay or architecture decisions, these docs are the source of truth for prior reasoning — check them before re-deciding something already settled, and update the relevant doc (especially `MELHORIAS.md`/`GDD.md`) when you implement backlog items or change scope.
+When making non-trivial gameplay or architecture decisions, these docs are the source of truth for prior reasoning — check them before re-deciding something already settled, and update the relevant doc (especially `lista_tarefa.md`/`GDD.md`) when you implement backlog items or change scope.

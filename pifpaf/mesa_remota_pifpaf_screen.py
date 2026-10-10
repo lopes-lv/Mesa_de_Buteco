@@ -17,7 +17,7 @@ import queue
 import pygame
 from core.deck import Card
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez,
@@ -367,7 +367,7 @@ class MesaRemotaPifPafScreen:
 
         if self.erro_acao:
             desenhar_badge(tela, largura // 2, altura - 140, self.erro_acao, CORAL,
-                            cor_texto=PANEL, tamanho_fonte=12, borda=INK)
+                            cor_texto=INK, tamanho_fonte=12, borda=INK)
 
     def _desenhar_topo(self, tela, largura):
         desenhar_badge(tela, largura // 2, 30, f"MAO #{self.estado['mao_numero']}",
@@ -375,7 +375,7 @@ class MesaRemotaPifPafScreen:
         meu = self._meu_jogador()
         stack = meu["stack"] if meu else 0
         desenhar_badge(tela, largura - 24, 30, f"VOCE: {stack}",
-                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
     def _desenhar_botao_sair(self, tela):
@@ -412,7 +412,7 @@ class MesaRemotaPifPafScreen:
             else:
                 texto_vira = f"VIRA {_carta_str(vira)}  →  CORINGA VALE {self.estado['coringa_valor']}"
             desenhar_badge(tela, cx, mesa_rect.top + 30, texto_vira,
-                            YELLOW, cor_texto=INK, tamanho_fonte=11, familia="mono", borda=INK)
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=11, familia="mono", borda=INK)
 
     def _desenhar_jogadores(self, tela, mesa_rect):
         jogadores = self.estado["jogadores"]
@@ -433,7 +433,7 @@ class MesaRemotaPifPafScreen:
                 desenhar_glow_de_vez(tela, x, y, CARTA_BOT_TAMANHO[0], CARTA_BOT_TAMANHO[1], self.tempo_decorrido)
 
             fundo = LOCKED if jogador["eliminado"] else PANEL
-            desenhar_painel(tela, painel, cor=fundo, radius=16, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_eu else PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
             desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
@@ -460,7 +460,8 @@ class MesaRemotaPifPafScreen:
             if status:
                 desenhar_badge(tela, painel.x + 62, painel.y + 48, status,
                                 MINT if not jogador["eliminado"] else LOCKED,
-                                cor_texto=INK, tamanho_fonte=9, ancorar="midleft")
+                                cor_texto=(SOMBRA if not jogador["eliminado"] else INK),
+                                tamanho_fonte=9, ancorar="midleft")
 
     def _desenhar_bandeja_mao(self, tela, largura, altura):
         meu = self._meu_jogador()
@@ -497,7 +498,7 @@ class MesaRemotaPifPafScreen:
         n_linhas = 1 + len(resultado["detalhes"])
         painel = pygame.Rect(0, 0, 480, 130 + 26 * n_linhas)
         painel.center = (largura // 2, altura - 200)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "RESULTADO DA MAO", painel.centerx, painel.y + 24,
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
@@ -529,25 +530,25 @@ class MesaRemotaPifPafScreen:
 
         painel = pygame.Rect(0, 0, 440, 200)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
         desenhar_texto(tela, "Sala encerrada", painel.centerx, painel.y + 50,
                         tamanho=26, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, self.mensagem_final, painel.centerx, painel.y + 100,
                         tamanho=13, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)
 
     def _desenhar_tela_final(self, tela, largura, altura):
         painel = pygame.Rect(0, 0, 440, 220)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
                         tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, f"Vencedor: {self.vencedor_final}", painel.centerx, painel.y + 100,
                         tamanho=19, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)
 
     def _desenhar_controles(self, tela, largura, altura):
         eh_minha_vez = self._eh_minha_vez()
@@ -576,7 +577,7 @@ class MesaRemotaPifPafScreen:
 
                 desenhar_badge(tela, largura // 2, base_y - 48,
                                 "MÃO FECHADA! Bata sem comprar e ganhe em dobro",
-                                YELLOW, cor_texto=INK, tamanho_fonte=12, borda=INK)
+                                YELLOW, cor_texto=SOMBRA, tamanho_fonte=12, borda=INK)
                 desenhar_botao(tela, self.botao_mao_fechada, "Bater (2x)",
                                 hover=self.botao_mao_fechada.collidepoint(mouse_pos),
                                 tamanho_fonte=16, cor=YELLOW)
@@ -587,7 +588,7 @@ class MesaRemotaPifPafScreen:
                 self.botao_descarte.midleft = (largura // 2 + 10, base_y)
 
             desenhar_botao(tela, self.botao_monte, "Comprar Monte",
-                            hover=self.botao_monte.collidepoint(mouse_pos), tamanho_fonte=16, cor=BLUE, cor_texto=PANEL)
+                            hover=self.botao_monte.collidepoint(mouse_pos), tamanho_fonte=16, cor=BLUE, cor_texto=INK)
             desenhar_kbd(tela, self.botao_monte.right - 14, self.botao_monte.bottom - 14, "M", ancorar="bottomright")
 
             desenhar_botao(tela, self.botao_descarte, "Comprar Descarte",
@@ -609,14 +610,14 @@ class MesaRemotaPifPafScreen:
         if descarte_fecha_mao:
             desenhar_badge(tela, largura // 2, base_y - 60,
                             "Essa carta fecha sua mão! Descartar = Bater",
-                            YELLOW, cor_texto=INK, tamanho_fonte=12, borda=INK)
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=12, borda=INK)
             desenhar_botao(tela, self.botao_descartar, "Bater!", ativo=True,
                             hover=self.botao_descartar.collidepoint(mouse_pos),
                             tamanho_fonte=18, cor=YELLOW)
         else:
             desenhar_botao(tela, self.botao_descartar, "Descartar", ativo=pode_descartar,
                             hover=pode_descartar and self.botao_descartar.collidepoint(mouse_pos),
-                            tamanho_fonte=18, cor=CORAL, cor_texto=PANEL)
+                            tamanho_fonte=18, cor=CORAL, cor_texto=INK)
         desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter", ancorar="bottomright")
 
         if not pode_descartar:
