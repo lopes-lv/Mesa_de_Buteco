@@ -26,6 +26,7 @@ class Settings:
         self.mostrar_atalhos = True
         self.usar_joker_pifpaf = False
         self.baralho_skin = "padrao"
+        self.selecao_automatica_pecas = False
 
     def delay_bot(self):
         return VELOCIDADES_BOT[self.velocidade_bots]
@@ -49,3 +50,6 @@ class Settings:
     def ciclar_baralho_skin(self, direcao=1):
         indice = ORDEM_BARALHO_SKINS.index(self.baralho_skin)
         self.baralho_skin = ORDEM_BARALHO_SKINS[(indice + direcao) % len(ORDEM_BARALHO_SKINS)]
+
+    def alternar_selecao_automatica_pecas(self):
+        self.selecao_automatica_pecas = not self.selecao_automatica_pecas

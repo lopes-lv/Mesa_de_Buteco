@@ -38,6 +38,15 @@ TIPO_BOT = "bot"
 TIPO_HUMANO_LOCAL = "humano_local"
 TIPO_HUMANO_REMOTO = "humano_remoto"
 
+# Fases visuais do início de mão (ver domino_screen.py/mesa_remota_domino_screen.py):
+# a mão inteira já é conhecida desde `iniciar_nova_mao` (sem monte, sem
+# compra - ver acima), então "embaralhando"/"escolhendo" são puramente
+# cosméticas/locais a cada tela, não fazem parte do estado real da mesa.
+FASE_EMBARALHANDO = "embaralhando"
+FASE_ESCOLHENDO = "escolhendo"
+FASE_JOGANDO = "jogando"
+DURACAO_EMBARALHAR = 1.0
+
 PONTUACAO_VITORIA = 250
 BONUS_TRANCAR_PARCIAL = 50   # todo mundo passa e a vez volta pra quem jogou, que ainda consegue jogar
 BONUS_PASSE = 10             # pra quem jogou imediatamente antes de alguém passar

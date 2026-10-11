@@ -86,7 +86,7 @@ class CriarSalaScreen:
 
         painel = pygame.Rect(0, 0, 440, 260)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, radius=24)
+        desenhar_painel(tela, painel, radius=0)
 
         desenhar_texto(tela, "Como você quer ser chamado na mesa?", painel.centerx, painel.y + 34,
                         tamanho=15, cor=INK, negrito=True, centralizado=True)
@@ -187,7 +187,7 @@ class EntrarSalaScreen:
 
         painel = pygame.Rect(0, 0, 460, 380)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, radius=24)
+        desenhar_painel(tela, painel, radius=0)
 
         desenhar_texto(tela, "Seu nome", painel.x + 40, painel.y + 30, tamanho=13, cor=TEXT_MUTED, negrito=True)
         self.campo_nome.rect.midtop = (painel.centerx, painel.y + 48)
@@ -305,7 +305,7 @@ class LobbyScreen:
 
         painel = pygame.Rect(0, 0, 480, 440)
         painel.center = (largura // 2, altura // 2 + 10)
-        desenhar_painel(tela, painel, radius=24)
+        desenhar_painel(tela, painel, radius=0)
 
         self.chat.desenhar(tela, largura, altura)
 
@@ -321,7 +321,7 @@ class LobbyScreen:
 
         if self.eh_host:
             desenhar_badge(tela, painel.centerx, painel.y + 40, self.sala_rede.codigo,
-                            YELLOW, cor_texto=INK, tamanho_fonte=22, familia="mono", borda=INK)
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=22, familia="mono", borda=INK)
             desenhar_texto(tela, f"IP: {self.sala_rede.ip_local}:{self.sala_rede.porta_tcp} (fallback manual)",
                             painel.centerx, painel.y + 78, tamanho=12, cor=TEXT_MUTED, centralizado=True)
             jogadores = self.sala_rede.lista_jogadores_lobby()
@@ -342,8 +342,8 @@ class LobbyScreen:
         if self.eh_host:
             self.checkbox_bots.midleft = (painel.x + 30, painel.bottom - 118)
             marcado = self.completar_com_bots
-            pygame.draw.rect(tela, MINT if marcado else PANEL, self.checkbox_bots, border_radius=6)
-            pygame.draw.rect(tela, INK, self.checkbox_bots, width=2, border_radius=6)
+            pygame.draw.rect(tela, MINT if marcado else PANEL, self.checkbox_bots, border_radius=0)
+            pygame.draw.rect(tela, INK, self.checkbox_bots, width=2, border_radius=0)
             desenhar_texto(tela, "Completar vagas restantes com bots",
                             self.checkbox_bots.right + 12, self.checkbox_bots.centery - 9,
                             tamanho=13, cor=INK)

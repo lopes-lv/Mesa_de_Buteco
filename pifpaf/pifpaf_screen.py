@@ -17,7 +17,7 @@ from collections import deque
 import pygame
 from core.deck import Card
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez,
@@ -490,7 +490,7 @@ class PifPafTableScreen:
                         PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
         humano = self._jogador(self.id_humano)
         desenhar_badge(tela, largura - 24, 30, f"VOCE: {humano.stack}",
-                        YELLOW, cor_texto=INK, tamanho_fonte=13, familia="mono",
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
     def _desenhar_botao_sair(self, tela):
@@ -526,7 +526,7 @@ class PifPafTableScreen:
             else:
                 texto_vira = f"VIRA {_carta_str(self.mesa.vira)}  →  CORINGA VALE {self.mesa.coringa_valor}"
             desenhar_badge(tela, cx, mesa_rect.top + 30, texto_vira,
-                            YELLOW, cor_texto=INK, tamanho_fonte=11, familia="mono", borda=INK)
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=11, familia="mono", borda=INK)
 
     def _iniciais(self, nome):
         partes = nome.replace('"', "").split()
@@ -553,7 +553,7 @@ class PifPafTableScreen:
                 desenhar_glow_de_vez(tela, x, y, CARTA_BOT_TAMANHO[0], CARTA_BOT_TAMANHO[1], self.tempo_decorrido)
 
             fundo = LOCKED if jogador.eliminado else PANEL
-            desenhar_painel(tela, painel, cor=fundo, radius=16, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_humano else PALETA_AVATAR[jogador.id % len(PALETA_AVATAR)]
             cx_avatar = painel.x + 34
@@ -581,7 +581,8 @@ class PifPafTableScreen:
 
             if status:
                 desenhar_badge(tela, painel.x + 62, painel.y + 48, status, MINT if not jogador.eliminado else LOCKED,
-                                cor_texto=INK, tamanho_fonte=9, ancorar="midleft")
+                                cor_texto=(SOMBRA if not jogador.eliminado else INK),
+                                tamanho_fonte=9, ancorar="midleft")
 
     # ---------------------------------------------------------------- Bandeja da mao
     def _rects_mao_humano(self, humano):
@@ -648,7 +649,7 @@ class PifPafTableScreen:
 
                 desenhar_badge(tela, largura // 2, base_y - 48,
                                 "MÃO FECHADA! Bata sem comprar e ganhe em dobro",
-                                YELLOW, cor_texto=INK, tamanho_fonte=12, borda=INK)
+                                YELLOW, cor_texto=SOMBRA, tamanho_fonte=12, borda=INK)
                 desenhar_botao(tela, self.botao_mao_fechada, "Bater (2x)",
                                 hover=self.botao_mao_fechada.collidepoint(mouse_pos),
                                 tamanho_fonte=16, cor=YELLOW)
@@ -659,7 +660,7 @@ class PifPafTableScreen:
                 self.botao_descarte.midleft = (largura // 2 + 10, base_y)
 
             desenhar_botao(tela, self.botao_monte, "Comprar Monte",
-                            hover=self.botao_monte.collidepoint(mouse_pos), tamanho_fonte=16, cor=BLUE, cor_texto=PANEL)
+                            hover=self.botao_monte.collidepoint(mouse_pos), tamanho_fonte=16, cor=BLUE, cor_texto=INK)
             desenhar_kbd(tela, self.botao_monte.right - 14, self.botao_monte.bottom - 14, "M", ancorar="bottomright")
 
             desenhar_botao(tela, self.botao_descarte, "Comprar Descarte",
@@ -681,14 +682,14 @@ class PifPafTableScreen:
         if descarte_fecha_mao:
             desenhar_badge(tela, largura // 2, base_y - 60,
                             "Essa carta fecha sua mão! Descartar = Bater",
-                            YELLOW, cor_texto=INK, tamanho_fonte=12, borda=INK)
+                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=12, borda=INK)
             desenhar_botao(tela, self.botao_descartar, "Bater!", ativo=True,
                             hover=self.botao_descartar.collidepoint(mouse_pos),
                             tamanho_fonte=18, cor=YELLOW)
         else:
             desenhar_botao(tela, self.botao_descartar, "Descartar", ativo=pode_descartar,
                             hover=pode_descartar and self.botao_descartar.collidepoint(mouse_pos),
-                            tamanho_fonte=18, cor=CORAL, cor_texto=PANEL)
+                            tamanho_fonte=18, cor=CORAL, cor_texto=INK)
         desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter", ancorar="bottomright")
 
         if not pode_descartar:
@@ -709,7 +710,7 @@ class PifPafTableScreen:
         n_linhas = 1 + len(resultado["detalhes"])
         painel = pygame.Rect(0, 0, 480, 110 + 26 * n_linhas)
         painel.center = (largura // 2, altura - 200)
-        desenhar_painel(tela, painel, cor=PANEL, radius=20)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "RESULTADO DA MAO", painel.centerx, painel.y + 24,
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
@@ -744,11 +745,11 @@ class PifPafTableScreen:
 
         painel = pygame.Rect(0, 0, 440, 220)
         painel.center = (largura // 2, altura // 2)
-        desenhar_painel(tela, painel, cor=PANEL, radius=24)
+        desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         desenhar_texto(tela, "FIM DE JOGO", painel.centerx, painel.y + 46,
                         tamanho=32, cor=INK, negrito=True, centralizado=True, familia="display")
         desenhar_texto(tela, f"Vencedor: {self.app.nome_vencedor}", painel.centerx, painel.y + 100,
                         tamanho=19, cor=TEXT_MUTED, centralizado=True)
         desenhar_badge(tela, painel.centerx, painel.y + 150, "Clique para voltar ao menu",
-                        YELLOW, cor_texto=INK, tamanho_fonte=12)
+                        YELLOW, cor_texto=SOMBRA, tamanho_fonte=12)

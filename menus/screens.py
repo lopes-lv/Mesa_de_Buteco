@@ -4,7 +4,7 @@ A tela de Mesa/Gameplay fica em table_screen.py por ser mais extensa.
 """
 import pygame
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, MINT, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, MINT, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_kbd, desenhar_badge, obter_fonte,
 )
@@ -33,6 +33,8 @@ class MenuScreen:
         elif evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_RETURN:
                 self.app.ir_para_escolha_modo()
+            elif evento.key == pygame.K_ESCAPE:
+                self.app.encerrar()
 
     def atualizar(self, dt):
         pass
@@ -56,7 +58,7 @@ class MenuScreen:
 
         selo = pygame.Rect(0, 0, selo_w, selo_w)
         selo.center = (inicio_x + selo_w // 2, centro_y)
-        desenhar_painel(tela, selo, cor=YELLOW, radius=20, deslocamento_sombra=(5, 5))
+        desenhar_painel(tela, selo, cor=YELLOW, radius=0, deslocamento_sombra=(5, 5))
         desenhar_texto(tela, "♠", selo.centerx, selo.centery - 2, tamanho=40,
                         cor=INK, centralizado=True)
 
@@ -92,7 +94,7 @@ class MenuScreen:
                         tamanho_fonte=17, cor=PANEL)
 
         desenhar_botao(tela, self.botao_sair, "Sair", hover=hover_sair,
-                        tamanho_fonte=22, cor=CORAL, cor_texto=PANEL)
+                        tamanho_fonte=22, cor=CORAL, cor_texto=INK)
         desenhar_kbd(tela, self.botao_sair.right - 16, self.botao_sair.centery, "Esc", ancorar="midright")
 
         desenhar_texto(tela, "Redimensione a janela livremente",
@@ -108,7 +110,7 @@ class ModeSelectScreen:
         {"id": "pifpaf", "titulo": "PIF PAF", "subtitulo": "Compra, descarte e batida",
          "simbolo": "♣", "ativo": True},
         {"id": "domino", "titulo": "DOMINÓ", "subtitulo": "Corrida aos 250 pontos, 3 a 4 jogadores",
-         "simbolo": "▦", "ativo": True},
+         "simbolo": None, "ativo": True},
         {"id": "inedito", "titulo": "MODO INEDITO", "subtitulo": "Em breve",
          "simbolo": "?", "ativo": False},
     ]
@@ -151,12 +153,17 @@ class ModeSelectScreen:
             hover = modo["ativo"] and rect.collidepoint(mouse_pos)
             cor_fundo = PANEL if modo["ativo"] else LOCKED
             desenho_rect = rect.move(-3, -3) if hover else rect
-            desenhar_painel(tela, desenho_rect, cor=cor_fundo, radius=20,
+            desenhar_painel(tela, desenho_rect, cor=cor_fundo, radius=0,
                              deslocamento_sombra=(8, 8) if hover else (6, 6))
 
             cor_simbolo = INK if modo["ativo"] else TEXT_MUTED
-            desenhar_texto(tela, modo["simbolo"], desenho_rect.centerx, desenho_rect.y + 70,
-                            tamanho=48, cor=cor_simbolo, centralizado=True)
+            if modo["simbolo"] is None:  # Dominó: sem glifo Unicode confiável, desenha a peça
+                largura_icone, altura_icone = 34, 58
+                desenhar_peca(tela, desenho_rect.centerx - largura_icone // 2, desenho_rect.y + 70 - altura_icone // 2,
+                              largura_icone, altura_icone, 6, 5, vertical=True)
+            else:
+                desenhar_texto(tela, modo["simbolo"], desenho_rect.centerx, desenho_rect.y + 70,
+                                tamanho=48, cor=cor_simbolo, centralizado=True)
             desenhar_texto(tela, modo["titulo"], desenho_rect.centerx, desenho_rect.y + 140,
                             tamanho=17, cor=INK if modo["ativo"] else TEXT_MUTED, negrito=True,
                             centralizado=True, familia="display")
@@ -166,7 +173,8 @@ class ModeSelectScreen:
             badge_texto = "ATIVO" if modo["ativo"] else "EM BREVE"
             badge_cor = MINT if modo["ativo"] else LOCKED
             desenhar_badge(tela, desenho_rect.centerx, desenho_rect.bottom - 30, badge_texto,
-                            badge_cor, cor_texto=INK, tamanho_fonte=11, borda=INK)
+                            badge_cor, cor_texto=(SOMBRA if modo["ativo"] else INK),
+                            tamanho_fonte=11, borda=INK)
 
         self.botao_voltar.topleft = (30, 30)
         desenhar_botao(tela, self.botao_voltar, "< Voltar",
@@ -247,6 +255,8 @@ class ConfigScreen:
         elif evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_RETURN and self.modo_partida == "solo":
                 self._iniciar_partida()
+            elif evento.key == pygame.K_ESCAPE:
+                self.app.ir_para_escolha_modo()
 
     def atualizar(self, dt):
         pass
@@ -257,13 +267,13 @@ class ConfigScreen:
         mouse_pos = pygame.mouse.get_pos()
 
         titulo = self.TITULOS_MODO.get(self.modo, "PARTIDA")
-        desenhar_texto(tela, f"CONFIGURACAO DA MESA — {titulo}", largura // 2, altura // 6,
+        desenhar_texto(tela, f"CONFIGURAÇÃO DA MESA — {titulo}", largura // 2, altura // 6,
                         tamanho=26, cor=INK, negrito=True, centralizado=True, familia="display")
 
         altura_painel = 340 + (66 if self.suporta_multiplayer else 0)
         painel = pygame.Rect(0, 0, 460, altura_painel)
         painel.center = (largura // 2, altura // 2 + 10)
-        desenhar_painel(tela, painel, radius=24)
+        desenhar_painel(tela, painel, radius=0)
 
         y_bots = painel.y + 34
 
@@ -334,7 +344,7 @@ class ConfigScreen:
 
             rotulo_skin = ROTULOS_BARALHO_SKIN[self.app.settings.baralho_skin].upper()
             desenhar_badge(tela, painel.centerx, y_deck + 20 + altura_carta + 22, rotulo_skin,
-                            MINT, cor_texto=INK, tamanho_fonte=11)
+                            MINT, cor_texto=SOMBRA, tamanho_fonte=11)
 
         self.botao_iniciar.center = (largura // 2, painel.bottom + 56)
         desenhar_botao(tela, self.botao_iniciar, "Iniciar Partida",
@@ -361,6 +371,7 @@ class SettingsScreen:
         self.botao_fichas_mais = pygame.Rect(0, 0, 48, 48)
         self.botao_joker_pifpaf = pygame.Rect(0, 0, 190, 48)
         self.botao_baralho_skin = pygame.Rect(0, 0, 190, 48)
+        self.botao_selecao_pecas = pygame.Rect(0, 0, 190, 48)
 
     def tratar_evento(self, evento):
         settings = self.app.settings
@@ -381,6 +392,8 @@ class SettingsScreen:
                 settings.alternar_joker_pifpaf()
             elif self.botao_baralho_skin.collidepoint(evento.pos):
                 settings.ciclar_baralho_skin()
+            elif self.botao_selecao_pecas.collidepoint(evento.pos):
+                settings.alternar_selecao_automatica_pecas()
         elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
             self.app.ir_para_menu()
 
@@ -401,9 +414,9 @@ class SettingsScreen:
         desenhar_texto(tela, "Valem a partir da próxima partida iniciada",
                         largura // 2, altura // 6 + 34, tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
-        painel = pygame.Rect(0, 0, 480, 436)
+        painel = pygame.Rect(0, 0, 480, 504)
         painel.center = (largura // 2, altura // 2 + 10)
-        desenhar_painel(tela, painel, radius=24)
+        desenhar_painel(tela, painel, radius=0)
 
         espaco_linha = 68
         y = painel.y + 46
@@ -461,6 +474,15 @@ class SettingsScreen:
         self.botao_baralho_skin.midright = (painel.right - 30, y + 2)
         desenhar_botao(tela, self.botao_baralho_skin, ROTULOS_BARALHO_SKIN[settings.baralho_skin],
                         hover=self.botao_baralho_skin.collidepoint(mouse_pos), tamanho_fonte=14, cor=PANEL)
+        y += espaco_linha
+
+        # ---- Seleção de peças no Dominó ----
+        self._linha(tela, painel, y, "Seleção de peças (Dominó)")
+        self.botao_selecao_pecas.midright = (painel.right - 30, y + 2)
+        texto_selecao = "Automática" if settings.selecao_automatica_pecas else "Manual"
+        desenhar_botao(tela, self.botao_selecao_pecas, texto_selecao,
+                        hover=self.botao_selecao_pecas.collidepoint(mouse_pos),
+                        tamanho_fonte=14, cor=MINT if settings.selecao_automatica_pecas else PANEL)
 
         self.botao_voltar.topleft = (30, 30)
         desenhar_botao(tela, self.botao_voltar, "< Voltar",

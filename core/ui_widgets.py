@@ -32,9 +32,9 @@ class CampoTexto:
                 self.texto += ch
 
     def desenhar(self, tela):
-        pygame.draw.rect(tela, PANEL, self.rect, border_radius=10)
+        pygame.draw.rect(tela, PANEL, self.rect, border_radius=0)
         cor_borda = INK if self.focado else TEXT_MUTED
-        pygame.draw.rect(tela, cor_borda, self.rect, width=3 if self.focado else 2, border_radius=10)
+        pygame.draw.rect(tela, cor_borda, self.rect, width=3 if self.focado else 2, border_radius=0)
         texto_exibir = self.texto if self.texto else self.placeholder
         cor_texto = INK if self.texto else TEXT_MUTED
         desenhar_texto(tela, texto_exibir, self.rect.x + 14, self.rect.centery - 9,

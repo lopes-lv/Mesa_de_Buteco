@@ -78,9 +78,13 @@ class App:
     def alternar_tela_cheia(self):
         self.settings.tela_cheia = not self.settings.tela_cheia
         if self.settings.tela_cheia:
+            self._tamanho_janela = self.tela.get_size()
             self.tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         else:
-            self.tela = pygame.display.set_mode((LARGURA_INICIAL, ALTURA_INICIAL), pygame.RESIZABLE)
+            tamanho = getattr(self, "_tamanho_janela", (LARGURA_INICIAL, ALTURA_INICIAL))
+            self.tela = pygame.display.set_mode(tamanho, pygame.RESIZABLE)
+        # descarta VIDEORESIZE/eventos de janela gerados pela própria troca
+        pygame.event.clear(pygame.VIDEORESIZE)
 
     def iniciar_partida(self, quantidade_bots):
         stack_inicial = self.settings.fichas_iniciais
@@ -192,6 +196,7 @@ class App:
             self.tela_atual.atualizar(dt)
             ui_theme.set_estilo_baralho(self.settings.baralho_skin)
             self.tela_atual.desenhar(self.tela)
+            ui_theme.aplicar_scanlines(self.tela)
             pygame.display.flip()
         pygame.quit()
         sys.exit()
@@ -201,9 +206,10 @@ class App:
             if evento.type == pygame.QUIT:
                 self.rodando = False
             elif evento.type == pygame.VIDEORESIZE:
-                self.tela = pygame.display.set_mode((evento.w, evento.h), pygame.RESIZABLE)
-            elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
-                self.rodando = False
+                # No pygame 2 a surface da janela já é redimensionada sozinha;
+                # chamar set_mode aqui (principalmente logo após alternar a tela
+                # cheia) derrubava o modo fullscreen e desincronizava o botão.
+                self.tela = pygame.display.get_surface()
             else:
                 self.tela_atual.tratar_evento(evento)
 
