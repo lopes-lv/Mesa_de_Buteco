@@ -1,0 +1,80 @@
+<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>Baralhos — poker_game</title><style>body{margin:0;padding:28px;background:#6f6f6f;font:15px system-ui,sans-serif;color:#fff}h1{margin:0 0 20px}h2{margin:26px 0 10px;font-size:16px}code{opacity:.7;font-weight:400;margin-left:8px}.row{display:flex;gap:14px;flex-wrap:wrap}.dark_glass .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(232,236,255,1.00);
+border:1.5px solid rgba(255,255,255,0.55);border-radius:12px;box-shadow:0px 4px 0 rgba(0,0,0,0.35);color:rgba(20,23,46,1.00);
+font:700 17px 'Segoe UI',Verdana,sans-serif;display:grid;place-items:center}
+.dark_glass .c.v{color:rgba(226,61,107,1.00);border-color:rgba(255,255,255,0.55)}
+.dark_glass .c b{position:absolute;left:6px;top:4px}.dark_glass .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.dark_glass .c span{font-size:36px;line-height:1}
+.dark_glass .verso{background:linear-gradient(rgba(107,91,255,1.00),rgba(43,212,192,1.00));border:2px solid rgba(255,255,255,0.67)}
+.dark_glass .vazia{background:transparent;border:2px dashed rgba(255,255,255,0.27);box-shadow:none}
+.dark_glass .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+.dark_glass .verso:after{content:'';position:absolute;left:50%;top:50%;width:44%;height:31%;transform:translate(-50%,-50%) rotate(45deg) scale(.85);border:2px solid rgba(255,255,255,0.59);}
+.terminal .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(5,8,5,1.00);
+border:1.5px solid rgba(125,255,160,1.00);border-radius:0px;box-shadow:0 0 14px rgba(125,255,160,0.16), 0 0 4px rgba(125,255,160,0.16);color:rgba(125,255,160,1.00);
+font:700 17px Consolas,'Courier New',monospace;display:grid;place-items:center}
+.terminal .c.v{color:rgba(255,179,71,1.00);border-color:rgba(255,179,71,1.00)}
+.terminal .c b{position:absolute;left:6px;top:4px}.terminal .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.terminal .c span{font-size:36px;line-height:1}
+.terminal .verso{background:repeating-linear-gradient(45deg,rgba(42,74,51,1.00) 0 2px,transparent 2px 8px), rgba(5,8,5,1.00);border:2px solid rgba(125,255,160,1.00)}
+.terminal .vazia{background:transparent;border:2px dashed rgba(42,74,51,1.00);box-shadow:none}
+.terminal .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+
+.art_deco .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(247,239,216,1.00);
+border:1.5px solid rgba(201,162,75,1.00);border-radius:6px;box-shadow:2px 3px 0 rgba(0,0,0,0.43);color:rgba(18,32,28,1.00);
+font:700 17px Georgia,'Times New Roman',serif;display:grid;place-items:center}
+.art_deco .c.v{color:rgba(168,40,31,1.00);border-color:rgba(201,162,75,1.00)}
+.art_deco .c b{position:absolute;left:6px;top:4px}.art_deco .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.art_deco .c span{font-size:36px;line-height:1}
+.art_deco .verso{background:repeating-linear-gradient(45deg,rgba(201,162,75,0.51) 0 1px,transparent 1px 8px),repeating-linear-gradient(-45deg,rgba(201,162,75,0.51) 0 1px,transparent 1px 8px), rgba(15,59,50,1.00);border:2px solid rgba(201,162,75,1.00)}
+.art_deco .vazia{background:transparent;border:2px dashed rgba(201,162,75,0.59);box-shadow:none}
+.art_deco .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+
+.pixel_crt .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(244,244,244,1.00);
+border:4px solid rgba(0,0,0,1.00);border-radius:0px;box-shadow:4px 4px 0 rgba(12,13,23,1.00);color:rgba(26,28,44,1.00);
+font:700 17px Consolas,'Courier New',monospace;display:grid;place-items:center}
+.pixel_crt .c.v{color:rgba(177,62,83,1.00);border-color:rgba(0,0,0,1.00)}
+.pixel_crt .c b{position:absolute;left:6px;top:4px}.pixel_crt .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.pixel_crt .c span{font-size:36px;line-height:1}
+.pixel_crt .verso{background:repeating-conic-gradient(rgba(65,166,246,1.00) 0 25%,transparent 0 50%) 0 0/16px 16px, rgba(59,93,201,1.00);border:4px solid rgba(255,255,255,1.00)}
+.pixel_crt .vazia{background:transparent;border:2px dashed rgba(93,106,138,1.00);box-shadow:none}
+.pixel_crt .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+
+.synthwave .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(16,5,42,1.00);
+border:2px solid rgba(39,232,255,1.00);border-radius:8px;box-shadow:0 0 14px rgba(39,232,255,0.27), 0 0 4px rgba(39,232,255,0.27);color:rgba(39,232,255,1.00);
+font:700 17px 'Segoe UI',Verdana,sans-serif;display:grid;place-items:center}
+.synthwave .c.v{color:rgba(255,46,147,1.00);border-color:rgba(255,46,147,1.00)}
+.synthwave .c b{position:absolute;left:6px;top:4px}.synthwave .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.synthwave .c span{font-size:36px;line-height:1}
+.synthwave .verso{background:linear-gradient(rgba(42,8,69,1.00),rgba(16,5,42,1.00));border:2px solid rgba(255,46,147,1.00)}
+.synthwave .vazia{background:transparent;border:2px dashed rgba(93,59,138,1.00);box-shadow:none}
+.synthwave .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+.synthwave .verso:after{content:'';position:absolute;left:50%;top:50%;width:44%;height:31%;transform:translate(-50%,-50%) rotate(45deg) scale(.85);border:2px solid rgba(255,46,147,1.00);box-shadow:0 0 8px rgba(255,46,147,1.00);}
+.papel_vintage .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(251,244,222,1.00);
+border:2px solid rgba(42,26,16,1.00);border-radius:5px;box-shadow:none;color:rgba(42,26,16,1.00);
+font:700 17px Georgia,'Times New Roman',serif;display:grid;place-items:center}
+.papel_vintage .c.v{color:rgba(168,50,31,1.00);border-color:rgba(42,26,16,1.00)}
+.papel_vintage .c b{position:absolute;left:6px;top:4px}.papel_vintage .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.papel_vintage .c span{font-size:36px;line-height:1}
+.papel_vintage .verso{background:repeating-linear-gradient(45deg,rgba(243,232,201,0.59) 0 2px,transparent 2px 8px), rgba(168,50,31,1.00);border:2px solid rgba(243,232,201,1.00)}
+.papel_vintage .vazia{background:transparent;border:2px dashed rgba(217,194,138,1.00);box-shadow:none}
+.papel_vintage .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+
+.editorial .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(255,255,255,1.00);
+border:3px solid rgba(13,13,13,1.00);border-radius:0px;box-shadow:none;color:rgba(13,13,13,1.00);
+font:700 17px 'Segoe UI',Verdana,sans-serif;display:grid;place-items:center}
+.editorial .c.v{color:rgba(255,59,31,1.00);border-color:rgba(13,13,13,1.00)}
+.editorial .c b{position:absolute;left:6px;top:4px}.editorial .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.editorial .c span{font-size:36px;line-height:1}
+.editorial .verso{background:linear-gradient(rgba(255,59,31,1.00),rgba(255,59,31,1.00)) center/30% 22% no-repeat, rgba(13,13,13,1.00);border:3px solid rgba(13,13,13,1.00)}
+.editorial .vazia{background:transparent;border:2px dashed rgba(170,170,170,1.00);box-shadow:none}
+.editorial .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+
+.zen .c{width:64px;height:90px;position:relative;box-sizing:border-box;background:rgba(255,250,240,1.00);
+border:1.5px solid rgba(43,38,34,1.00);border-radius:4px;box-shadow:0px 3px 0 rgba(0,0,0,0.22);color:rgba(43,38,34,1.00);
+font:700 17px Georgia,'Times New Roman',serif;display:grid;place-items:center}
+.zen .c.v{color:rgba(192,57,43,1.00);border-color:rgba(43,38,34,1.00)}
+.zen .c b{position:absolute;left:6px;top:4px}.zen .c b+b{left:auto;top:auto;right:6px;bottom:4px;transform:rotate(180deg)}
+.zen .c span{font-size:36px;line-height:1}
+.zen .verso{background:radial-gradient(ellipse rgba(192,57,43,1.00) 0 40%,transparent 41%), rgba(30,42,58,1.00);border:2px solid rgba(43,38,34,1.00)}
+.zen .vazia{background:transparent;border:2px dashed rgba(239,231,214,1.00);box-shadow:none}
+.zen .dest{border-color:#ffc93c;box-shadow:0 0 0 2px #ffc93c}
+</style></head><body><h1>Baralhos dos 8 estilos novos</h1><p>Ids usados em <code>baralhos_skins.py</code>. Prévia em HTML aproximada; a referência é o PNG gerado pelo Pygame.</p><section class='dark_glass'><h2>Dark Glass <code>dark_glass</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='terminal'><h2>Terminal <code>terminal</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='art_deco'><h2>Art Déco <code>art_deco</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='pixel_crt'><h2>Pixel CRT <code>pixel_crt</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='synthwave'><h2>Synthwave <code>synthwave</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='papel_vintage'><h2>Papel Vintage <code>papel_vintage</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='editorial'><h2>Editorial <code>editorial</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section><section class='zen'><h2>Zen <code>zen</code></h2><div class='row'><div class='c'><b>A</b><span>♠</span><b>A</b></div><div class='c v'><b>K</b><span>♥</span><b>K</b></div><div class='c v'><b>10</b><span>♦</span><b>10</b></div><div class='c'><b>Q</b><span>♣</span><b>Q</b></div><div class='c'><b>JK</b><span>★</span><b>JK</b></div><div class='c verso'></div><div class='c vazia'></div><div class='c dest'><b>A</b><span>♠</span><b>A</b></div></div></section></body></html>

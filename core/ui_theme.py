@@ -10,6 +10,7 @@ import math
 import pygame
 
 from .deck import NAIPE_CORINGA
+from . import baralhos_skins
 
 # ---------- Paleta (ver GUIA_TECNICO_PYGAME.md, secao 1) ----------
 BG = (242, 239, 231)
@@ -177,6 +178,14 @@ def get_estilo_baralho():
     return _estilo_baralho
 
 
+def desenhar_carta_vazia(tela, x, y, largura, altura):
+    """Slot de carta comunitária ainda não revelada."""
+    if _estilo_baralho in baralhos_skins.SKINS:
+        baralhos_skins.desenhar_carta_skin(tela, _estilo_baralho, x, y, largura, altura, vazia=True)
+        return
+    pygame.draw.rect(tela, (255, 255, 255), pygame.Rect(x, y, largura, altura), width=2, border_radius=10)
+
+
 def _desenhar_naipe_simbolo(tela, simbolo, cx, cy, tamanho, cor):
     if simbolo == "H":  # copas
         r = tamanho // 3
@@ -213,6 +222,11 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
     """Carta neobrutalista: face marfim, borda grossa preta, sombra sólida
     deslocada. `radius`/`borda` seguem a "tier" da carta (bot/comunitária/mão),
     conforme a tabela do GUIA_TECNICO (seção 3)."""
+    if _estilo_baralho in baralhos_skins.SKINS:
+        return baralhos_skins.desenhar_carta_skin(
+            tela, _estilo_baralho, x, y, largura, altura,
+            carta=carta, virada_para_baixo=virada_para_baixo, destaque=destaque)
+
     rect = pygame.Rect(x, y, largura, altura)
     if largura <= 50:
         radius, borda, sombra = 8, 2, (2, 2)
