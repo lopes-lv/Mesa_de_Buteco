@@ -209,6 +209,10 @@ class ConfigScreen:
         self.botao_criar_sala = pygame.Rect(0, 0, 360, 60)
         self.botao_entrar_sala = pygame.Rect(0, 0, 360, 60)
 
+        # Seletor de baralho (setas), só para modos com cartas (não Dominó).
+        self.botao_baralho_ant = pygame.Rect(0, 0, 40, 40)
+        self.botao_baralho_prox = pygame.Rect(0, 0, 40, 40)
+
     def _iniciar_partida(self):
         if self.modo == "pifpaf":
             self.app.iniciar_partida_pifpaf(self.quantidade_bots)
@@ -235,6 +239,13 @@ class ConfigScreen:
                 elif self.botao_entrar_sala.collidepoint(evento.pos):
                     self.app.ir_para_multiplayer_entrar()
                 return
+            if self.modo != "domino":
+                if self.botao_baralho_ant.collidepoint(evento.pos):
+                    self.app.settings.ciclar_baralho_skin(-1)
+                    return
+                elif self.botao_baralho_prox.collidepoint(evento.pos):
+                    self.app.settings.ciclar_baralho_skin(1)
+                    return
             if self.botao_menos.collidepoint(evento.pos):
                 self.quantidade_bots = max(self.min_bots, self.quantidade_bots - 1)
             elif self.botao_mais.collidepoint(evento.pos):
@@ -321,8 +332,16 @@ class ConfigScreen:
             desenhar_texto(tela, "Baralho", painel.centerx, y_deck, tamanho=16,
                             cor=INK, negrito=True, centralizado=True)
             largura_carta, altura_carta = 64, 90
-            desenhar_carta(tela, painel.centerx - largura_carta // 2, y_deck + 20,
+            carta_rect = desenhar_carta(tela, painel.centerx - largura_carta // 2, y_deck + 20,
                             largura_carta, altura_carta, carta=self.carta_preview)
+
+            self.botao_baralho_ant.center = (carta_rect.left - 32, carta_rect.centery)
+            self.botao_baralho_prox.center = (carta_rect.right + 32, carta_rect.centery)
+            desenhar_botao(tela, self.botao_baralho_ant, "<",
+                            hover=self.botao_baralho_ant.collidepoint(mouse_pos), tamanho_fonte=18, cor=PANEL)
+            desenhar_botao(tela, self.botao_baralho_prox, ">",
+                            hover=self.botao_baralho_prox.collidepoint(mouse_pos), tamanho_fonte=18, cor=PANEL)
+
             rotulo_skin = ROTULOS_BARALHO_SKIN[self.app.settings.baralho_skin].upper()
             desenhar_badge(tela, painel.centerx, y_deck + 20 + altura_carta + 22, rotulo_skin,
                             MINT, cor_texto=SOMBRA, tamanho_fonte=11)

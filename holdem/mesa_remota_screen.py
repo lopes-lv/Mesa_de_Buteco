@@ -14,7 +14,7 @@ import pygame
 from core.deck import Card
 from core.ui_theme import (
     BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
-    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
+    desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta, desenhar_carta_vazia,
     desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
     desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie, desenhar_mesa_oval_recorte,
 )
@@ -320,8 +320,7 @@ class MesaRemotaScreen:
             if i < n:
                 desenhar_carta(tela, x, y0, largura_carta, altura_carta, cartas[i])
             else:
-                rect_vazio = pygame.Rect(x, y0, largura_carta, altura_carta)
-                pygame.draw.rect(tela, (255, 255, 255), rect_vazio, width=2, border_radius=0)
+                desenhar_carta_vazia(tela, x, y0, largura_carta, altura_carta)
 
     def _desenhar_croupie(self, tela, recorte):
         progresso = 0.0

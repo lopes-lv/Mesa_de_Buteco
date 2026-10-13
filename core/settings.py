@@ -3,6 +3,7 @@ settings.py - Configurações básicas do jogo, mantidas em memória durante a
 sessão (não persistidas em disco). Acessadas via `app.settings` a partir de
 qualquer tela.
 """
+from .baralhos_skins import ORDEM_SKINS as _ORDEM_SKINS_NOVAS, ROTULOS_SKINS as _ROTULOS_SKINS_NOVOS
 
 VELOCIDADES_BOT = {"lenta": 1.6, "normal": 0.9, "rapida": 0.35}
 ORDEM_VELOCIDADES = ["lenta", "normal", "rapida"]
@@ -11,8 +12,8 @@ ROTULOS_VELOCIDADE = {"lenta": "Lenta", "normal": "Normal", "rapida": "Rápida"}
 FICHAS_MIN, FICHAS_MAX, FICHAS_PASSO = 500, 5000, 500
 FICHAS_PADRAO = 1500
 
-ORDEM_BARALHO_SKINS = ["padrao", "dark"]
-ROTULOS_BARALHO_SKIN = {"padrao": "Padrão", "dark": "Dark"}
+ORDEM_BARALHO_SKINS = ["padrao", "dark"] + _ORDEM_SKINS_NOVAS
+ROTULOS_BARALHO_SKIN = {"padrao": "Padrão", "dark": "Dark", **_ROTULOS_SKINS_NOVOS}
 
 
 class Settings:
@@ -46,9 +47,9 @@ class Settings:
     def alternar_joker_pifpaf(self):
         self.usar_joker_pifpaf = not self.usar_joker_pifpaf
 
-    def ciclar_baralho_skin(self):
+    def ciclar_baralho_skin(self, direcao=1):
         indice = ORDEM_BARALHO_SKINS.index(self.baralho_skin)
-        self.baralho_skin = ORDEM_BARALHO_SKINS[(indice + 1) % len(ORDEM_BARALHO_SKINS)]
+        self.baralho_skin = ORDEM_BARALHO_SKINS[(indice + direcao) % len(ORDEM_BARALHO_SKINS)]
 
     def alternar_selecao_automatica_pecas(self):
         self.selecao_automatica_pecas = not self.selecao_automatica_pecas

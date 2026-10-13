@@ -12,6 +12,7 @@ import math
 import pygame
 
 from .deck import NAIPE_CORINGA
+from . import baralhos_skins
 
 # ---------- Paleta ----------
 # Papéis fixos (não trocam de lado claro/escuro):
@@ -206,6 +207,14 @@ def get_estilo_baralho():
     return _estilo_baralho
 
 
+def desenhar_carta_vazia(tela, x, y, largura, altura):
+    """Slot de carta comunitária ainda não revelada."""
+    if _estilo_baralho in baralhos_skins.SKINS:
+        baralhos_skins.desenhar_carta_skin(tela, _estilo_baralho, x, y, largura, altura, vazia=True)
+        return
+    pygame.draw.rect(tela, (255, 255, 255), pygame.Rect(x, y, largura, altura), width=2, border_radius=0)
+
+
 def _desenhar_naipe_simbolo(tela, simbolo, cx, cy, tamanho, cor):
     if simbolo == "H":  # copas
         r = tamanho // 3
@@ -243,6 +252,11 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
     da UI escuro - é assim que uma carta de baralho de verdade funciona),
     borda grossa reta, sombra sólida deslocada. `borda`/`sombra` seguem a
     "tier" da carta (bot/comunitária/mão)."""
+    if _estilo_baralho in baralhos_skins.SKINS:
+        return baralhos_skins.desenhar_carta_skin(
+            tela, _estilo_baralho, x, y, largura, altura,
+            carta=carta, virada_para_baixo=virada_para_baixo, destaque=destaque)
+
     rect = pygame.Rect(x, y, largura, altura)
     if largura <= 50:
         borda, sombra = 3, (3, 3)
