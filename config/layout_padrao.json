@@ -6,7 +6,7 @@
     "escala_fonte": {"valor": 100, "min": 70, "max": 150, "passo": 5, "rotulo": "Tamanho de todos os textos (%)"},
     "borda": {"valor": 4, "min": 1, "max": 10, "passo": 1, "rotulo": "Espessura da borda de botões e painéis"},
     "sombra": {"valor": 6, "min": 0, "max": 16, "passo": 1, "rotulo": "Deslocamento da sombra de botões e painéis"},
-    "fichas_iniciais": {"valor": 1500, "min": 500, "max": 5000, "passo": 500, "rotulo": "Fichas iniciais padrão (Hold'em/Pif Paf)"},
+    "fichas_iniciais": {"valor": 1500, "min": 500, "max": 5000, "passo": 500, "rotulo": "Fichas iniciais padrão (bots do Hold'em)"},
     "delay_bot_lenta_ms": {"valor": 1600, "min": 200, "max": 5000, "passo": 100, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Lenta (ms)"},
     "delay_bot_normal_ms": {"valor": 900, "min": 100, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Normal (ms)"},
     "delay_bot_rapida_ms": {"valor": 350, "min": 50, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Rápida (ms)"}

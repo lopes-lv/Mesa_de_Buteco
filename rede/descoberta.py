@@ -92,7 +92,7 @@ def procurar_sala_na_rede(codigo, porta_udp=PORTA_UDP_DESCOBERTA, timeout=4.0, i
     `intervalo_reenvio` segundos enquanto isso - um unico pacote broadcast
     (pedido ou resposta) se perder no caminho e uma ocorrencia comum em
     Wi-Fi/LAN, e sem essa retransmissao a sala "some" pra quem digitou o
-    codigo certo mas teve azar com a rede (ver MELHORIAS.md). Retorna dict
+    codigo certo mas teve azar com a rede (ver lista_tarefas.md). Retorna dict
     {ip, porta_tcp, anfitriao} ou None se ninguem respondeu a tempo (rede sem
     broadcast, firewall, ou codigo errado) - nesse caso a tela de entrada
     deve deixar o usuario digitar IP:porta manualmente.

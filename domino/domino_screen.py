@@ -1,6 +1,6 @@
 """
 domino_screen.py - Tela principal de gameplay do modo Dominó (corrida de
-pontos até 250 - ver domino_logic.py e MELHORIAS.md).
+pontos até 250 - ver domino_logic.py e domino/README.md).
 
 Não existe mais compra: cada jogador já recebe na mão todas as peças que vai
 ter na mão inteira (sem monte, ver domino_logic.criar_pecas). O jogador tem

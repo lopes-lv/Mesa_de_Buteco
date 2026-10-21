@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Python + Pygame desktop card/tile game ("Solo vs Bots") with three playable modes — Texas Hold'em, Pif Paf, and Dominó — sharing one tournament/elimination structure and one visual style ("Pixel Art Retrô CRT" — dark arcade palette, square corners, thick borders, hard offset shadows, monospace type, a scanline overlay) drawn entirely with `pygame.draw` (no external card/tile images). The style was "Neobrutalismo Suave / Dashboard Analítico" (light, rounded) before; `core/ui_theme.py`'s color/shape constants changed but every other module's call sites (buttons, panels, badges, avatars) did not, so touching the palette again means re-auditing which backgrounds need light vs dark text. `desenhar_botao` with `cor_texto=None` now picks the higher-contrast text itself (`ui_theme.cor_texto_sobre`, WCAG luminance — reproduces the old hand-kept list exactly: dark text only on YELLOW/MINT), but the many call sites that pass an explicit `cor_texto=SOMBRA/INK` (badges especially) don't adapt if a color is edited. Docs are in Portuguese; match that when editing them.
+Python + Pygame desktop card/tile game ("Solo vs Bots") with three playable modes — Texas Hold'em, Pif Paf, and Dominó — sharing one tournament/elimination structure and one visual style ("Pixel Art Retrô CRT" — dark arcade palette, square corners, thick borders, hard offset shadows, monospace type, a scanline overlay) drawn entirely with `pygame.draw` (no external card/tile images). The style was "Neobrutalismo Suave / Dashboard Analítico" (light, rounded) before; `core/ui_theme.py`'s color/shape constants changed but every other module's call sites (buttons, panels, badges, avatars) did not, so touching the palette again means re-auditing which backgrounds need light vs dark text. `desenhar_botao` with `cor_texto=None` now picks the higher-contrast text itself (`ui_theme.cor_texto_sobre`, WCAG luminance — reproduces the old hand-kept list exactly: dark text only on YELLOW/MINT), but the many call sites that pass an explicit `cor_texto=SOMBRA/INK` (badges especially) don't adapt if a color is edited. Docs are in Portuguese; match that when editing them. Chips: only Hold'em uses them — in solo the human's stack is a persistent wallet (`core/carteira.py` → git-ignored `config/carteira.json`, 12 h wait after hitting zero); Pif Paf has no chips (first to `VITORIAS_PARA_VENCER` hand wins, Joker is the only wild card, no vira); Dominó scores points.
 
 ## Commands
 
@@ -13,7 +13,15 @@ pip install pygame
 python main.py
 ```
 
-There is no requirements.txt, test suite, linter, or build config in this repo — `pygame` is the only dependency. There are no automated tests; verify gameplay changes by running the game and playing through the affected flow (or via `Agent`/manual play), not by adding a test framework.
+`pygame` is the only runtime dependency. There is an automated test suite in `tests/` (297 tests, headless, ~10 s; see `tests/README.md`, requirements in `tests/REQUISITOS.md`):
+
+```bash
+pip install -r requirements-dev.txt
+pytest -m "not lento"   # rules + structure, ~3 s (what CI runs on every push)
+pytest -m lento         # bot-vs-bot full games + the editor's overlap matrix
+```
+
+Run it after touching any engine, `core/layout.py`, `rede/protocolo.py` or table geometry. Tests follow the per-mode READMEs; a rule the code doesn't meet yet is an `xfail(reason="BUG: ...")` listed in `tests/README.md` — don't loosen the test to make it pass. Tests never touch the real `config/layout.json` or `config/carteira.json` (`conftest.py` swaps them for temp files). Gameplay feel (hover, drag, animation) is still verified by playing. CI is `.github/workflows/ci.yml`.
 
 Build a Windows executable (must be run on Windows, no cross-compile):
 ```bash
@@ -58,16 +66,16 @@ All three share `core/` (`deck.py` — cards, Hold'em/Pif Paf only; `ui_theme.py
 
 **Bot AI is per-mode and stateless-ish.** `bot_ai.py` (Hold'em) assigns each bot a fixed risk profile per match (tight/balanced/aggressive/tricky) and decides using hand strength, draws, pot odds, bet pressure, table position, and active opponent count. `pifpaf_bot_ai.py` (Pif Paf) and `domino_bot_ai.py` (Dominó) are each a single heuristic (no per-match profiles): Pif Paf only draws from discard when it actually reduces loose-card points, always knocks (`bate`) when possible, never discards the wild card; Dominó prefers a legal play that scores (multiple of 5 on the open ends, via `DominoTable.pontuacao_se_jogar`) over one that doesn't, then doubles, then the highest-point tile among what's left.
 
-**Deprecated code kept for reference.** `core/ui_pixelart.py` (old pixel-art rendering) and `assets/assets.png` are unused by the current game (replaced by `core/ui_theme.py`'s vector style) but intentionally kept — see `GDD.md` §3.2 for the rationale (possible future reintroduction as an alternate deck skin). Don't delete them without checking with the user; don't wire new features into them either.
+**Deprecated code kept for reference.** `core/ui_pixelart.py` (old pixel-art rendering) and `assets/assets.png` are unused by the current game (replaced by `core/ui_theme.py`'s vector style) but intentionally kept — see the "Visão e planos futuros" section of `README.md` (deck skins) for the rationale (possible future reintroduction as an alternate deck skin). Don't delete them without checking with the user; don't wire new features into them either.
 
 **`design/` directory.** Contains standalone HTML mockups + technical guides for visual styles that were evaluated before implementation, plus a design-system reference. `design/07_pixel_retro_crt/` is the style actually implemented in Pygame (`core/ui_theme.py`, current); `design/01_neobrutalismo_suave/` was the previous implemented style, now superseded; `03_casino_minimalista/`, `05_cozy_flat/`, `02_dark_glassmorphism/`, `04_terminal_tatico/`, `06_art_deco_cassino/`, `08_synthwave_neon/`, `09_papel_vintage/`, `10_editorial_suico/`, and `11_zen_japones/` are validated-but-unbuilt alternatives (`design/index.html` is a small gallery over the last four, the ones with a full set of mockup screens). `design/baralhos/` has 8 standalone card-back/face skins (one per unbuilt style above, including a `pixel_crt` one) with their own `GUIA_BARALHOS.md` on wiring one into `ui_theme.desenhar_carta` — not yet integrated; the live "Padrão" card look in `ui_theme.py` was built independently, matching the current Pixel Art Retrô CRT style directly rather than importing that skin module. `design/avaliacao/AVALIACAO.md` is a pre-redesign visual review of the old Neobrutalismo screens, now mostly superseded (its accent-glyph and card-slot-outline findings were fixed as part of the Pixel Art reskin). None of `design/` is imported by the running app.
 
 ## Key docs
 
-- `README.md` — setup, project layout, implemented rules summary, PyInstaller packaging.
-- `GDD.md` — living game design document (modes, economy, planned features).
-- `PIF_PAF_GUIA.md` — Pif Paf rules research and this project's specific design decisions/deviations (e.g. "a louca" rule is explicitly out of scope; "Mão Fechada" and the "knock by discarding the leftover card" fix are documented here with rationale).
-- `lista_tarefa.md` — project backlog/changelog of ideas and completed work, organized by theme (Tarefas Pendentes / Tarefas Concluídas).
+- `README.md` — project overview (merged with the old GDD): modes, structure, setup, shared systems, PyInstaller packaging, future plans.
+- `holdem/README.md`, `pifpaf/README.md`, `domino/README.md` — per-mode rules, bot AI, design decisions and **update notes** (what changed in each mode and why). Pif Paf's holds the old `PIF_PAF_GUIA.md` content ("a louca" out of scope; "Mão Fechada" and the "knock by discarding the leftover card" fix with rationale); Dominó's holds the old `NOTAS_ATUALIZACAO_DOMINO.md`.
+- `tools/README.md` — the visual layout editor (usage, files, how to add keys/previews, the overlap detector).
+- `lista_tarefas.md` — project backlog/changelog (header state + Tarefas / Concluído).
 - `MULTIPLAYER_PLANO.md` — architecture plan for local-network multiplayer via a host-authoritative model, implemented for all three modes (`rede/` package, `menus/multiplayer_screens.py`, one `<mode>/mesa_remota_*_screen.py` per mode, `core/chat_widget.py` for the in-session text chat). Read this before touching any networking code — it specifies the protocol, threading model, and which files/methods it touches.
 
-When making non-trivial gameplay or architecture decisions, these docs are the source of truth for prior reasoning — check them before re-deciding something already settled, and update the relevant doc (especially `lista_tarefa.md`/`GDD.md`) when you implement backlog items or change scope.
+When making non-trivial gameplay or architecture decisions, these docs are the source of truth for prior reasoning — check them before re-deciding something already settled, and update the relevant doc when you implement backlog items or change scope: the mode's README (add an entry to its "Notas de atualização") for gameplay changes, `lista_tarefas.md` for backlog.

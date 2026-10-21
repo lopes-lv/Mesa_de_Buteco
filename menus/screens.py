@@ -13,6 +13,7 @@ from core.ui_theme import (
     desenhar_kbd, desenhar_badge, obter_fonte,
 )
 from core.deck import Card
+from core import carteira
 from domino.domino_theme import desenhar_peca
 from core.settings import ROTULOS_VELOCIDADE, ROTULOS_BARALHO_SKIN
 
@@ -228,7 +229,15 @@ class ConfigScreen:
         self.botao_baralho_ant = pygame.Rect(0, 0, 40, 40)
         self.botao_baralho_prox = pygame.Rect(0, 0, 40, 40)
 
+    def _espera_carteira(self):
+        """Segundos até a carteira do Hold'em ser reposta (None = pode jogar)."""
+        if self.modo != "holdem":
+            return None
+        return carteira.segundos_para_reposicao()
+
     def _iniciar_partida(self):
+        if self._espera_carteira() is not None:
+            return
         if self.modo == "pifpaf":
             self.app.iniciar_partida_pifpaf(self.quantidade_bots)
         elif self.modo == "domino":
@@ -335,6 +344,15 @@ class ConfigScreen:
         desenhar_texto(tela, f"Mesa final: você + {self.quantidade_bots} bot(s) = {self.quantidade_bots + 1} jogadores",
                         painel.centerx, y_bots + 92, tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
+        espera = self._espera_carteira()
+        if self.modo == "holdem":
+            if espera is None:
+                texto_carteira, cor_carteira = f"Sua carteira: {carteira.saldo()} fichas", INK
+            else:
+                texto_carteira, cor_carteira = f"Sem fichas — volta em {carteira.formatar_espera(espera)}", CORAL
+            desenhar_texto(tela, texto_carteira, painel.centerx, y_bots + 114, tamanho=13,
+                            cor=cor_carteira, negrito=True, centralizado=True)
+
         # ---- Preview do "baralho" (carta ou peça de dominó) ----
         y_deck = y_bots + 140
         if self.modo == "domino":
@@ -363,7 +381,8 @@ class ConfigScreen:
 
         self.botao_iniciar.center = (largura // 2, painel.bottom + 56)
         desenhar_botao(tela, self.botao_iniciar, "Iniciar Partida",
-                        hover=self.botao_iniciar.collidepoint(mouse_pos), tamanho_fonte=22)
+                        hover=espera is None and self.botao_iniciar.collidepoint(mouse_pos), tamanho_fonte=22,
+                        cor=YELLOW if espera is None else LOCKED)
         desenhar_kbd(tela, self.botao_iniciar.right - 16, self.botao_iniciar.centery, "Enter", ancorar="midright")
 
         self.botao_voltar.topleft = (30, 30)

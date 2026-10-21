@@ -413,6 +413,7 @@ class TableScreen:
         if self.table.mao_finalizada_por_fold():
             resultados = self.table.processar_showdown()
             self.table.marcar_eliminados()
+            self.salvar_carteira()
             self.mensagem_vencedor_por_fold = resultados
             self._broadcast_estado()
             return
@@ -425,6 +426,7 @@ class TableScreen:
             if self.table.estagio == "showdown":
                 self.resultados_showdown = self.table.processar_showdown()
                 self.table.marcar_eliminados()
+                self.salvar_carteira()
             self._broadcast_estado()
             return
 
@@ -472,7 +474,16 @@ class TableScreen:
         else:
             self._iniciar_mao()
 
+    def salvar_carteira(self):
+        """Guarda o saldo do jogador na carteira (só no solo; a mesa do editor
+        visual usa um App falso sem `registrar_carteira`). Ao sair no meio da
+        mão, a aposta já feita fica de fora - como largar a mão."""
+        registrar = getattr(self.app, "registrar_carteira", None)
+        if self.sala_rede is None and registrar is not None:
+            registrar(self.table.jogadores[0].stack)
+
     def _sair_para_menu(self):
+        self.salvar_carteira()
         if self.sala_rede is not None:
             self.sala_rede.encerrar()
         self.app.ir_para_menu()

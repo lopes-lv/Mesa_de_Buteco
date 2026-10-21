@@ -2,7 +2,7 @@
 pifpaf_screen.py - Tela principal de gameplay do modo Pif Paf.
 
 Responsavel por:
- - Desenhar mesa, monte, descarte, vira/coringa e os assentos dos jogadores
+ - Desenhar mesa, monte, descarte e os assentos dos jogadores (com o placar de vitórias)
  - Mao do jogador humano numa bandeja inferior: arrastar uma carta reordena
    a mao (para organizar trincas/sequencias visualmente) e um clique simples
    seleciona a carta para descarte
@@ -23,7 +23,7 @@ from core.ui_theme import (
     desenhar_glow_de_vez, tamanho_badge,
 )
 from .pifpaf_bot_ai import decidir_fonte_compra_bot, escolher_descarte_bot
-from .pifpaf_logic import TIPO_HUMANO_REMOTO
+from .pifpaf_logic import TIPO_HUMANO_REMOTO, VITORIAS_PARA_VENCER
 from core.chat_widget import ChatWidget
 from core import layout
 from rede import protocolo
@@ -179,7 +179,7 @@ class PifPafTableScreen:
         if self.sala_rede is None:
             return
         for jogador in self.mesa.jogadores:
-            if jogador.tipo == TIPO_HUMANO_REMOTO and not jogador.eliminado:
+            if jogador.tipo == TIPO_HUMANO_REMOTO:
                 self.sala_rede.enviar_para(jogador.id, {
                     "tipo": protocolo.SUA_MAO,
                     "cartas": [[carta.valor, carta.naipe] for carta in jogador.mao],
@@ -196,7 +196,7 @@ class PifPafTableScreen:
             return None
         return {
             "vencedor": resultado.get("vencedor"),
-            "pote": resultado.get("pote"),
+            "vitorias_ganhas": resultado.get("vitorias_ganhas", 0),
             "empate": resultado.get("empate", False),
             "mao_fechada": resultado.get("mao_fechada", False),
             "detalhes": [{"jogador": d["jogador"], "pontos": d["pontos"]}
@@ -208,7 +208,7 @@ class PifPafTableScreen:
         jogadores = []
         for j in self.mesa.jogadores:
             jogadores.append({
-                "id": j.id, "nome": j.nome, "stack": j.stack, "eliminado": j.eliminado,
+                "id": j.id, "nome": j.nome, "vitorias": j.vitorias,
                 "num_cartas": len(j.mao),
                 "ja_agiu_nesta_mao": j.id in self.mesa.jogadores_ja_agiram_na_mao,
                 "desconectado": bool(self.sala_rede and j.id in self.sala_rede.desconectados),
@@ -217,8 +217,6 @@ class PifPafTableScreen:
         return {
             "tipo": protocolo.ESTADO,
             "mao_numero": self.mesa.mao_numero,
-            "vira": [self.mesa.vira.valor, self.mesa.vira.naipe] if self.mesa.vira else None,
-            "coringa_valor": self.mesa.coringa_valor,
             "usar_joker": self.mesa.usar_joker,
             "monte_restante": len(self.mesa.monte),
             "descarte_topo": [self.mesa.descarte[-1].valor, self.mesa.descarte[-1].naipe] if self.mesa.descarte else None,
@@ -316,7 +314,7 @@ class PifPafTableScreen:
         # trincas/sequencias visualmente) e a selecao por clique simples sao
         # liberadas a qualquer momento, mesmo fora do seu turno - so mudam a
         # ordem/selecao visual, nao a partida.
-        if not humano.eliminado and self._tratar_evento_mao(evento, humano):
+        if self._tratar_evento_mao(evento, humano):
             return
 
         jogador_da_vez = self.mesa.jogador_da_vez()
@@ -416,15 +414,13 @@ class PifPafTableScreen:
     def _bater(self, jogador):
         resultado = self.mesa.bater(jogador)
         if resultado is not None:
-            self._registrar(f"{jogador.nome} bateu! +{resultado['pote']} fichas", MINT)
-            self.mesa.marcar_eliminados()
+            self._registrar(f"{jogador.nome} bateu!", MINT)
         self._broadcast_estado()
 
     def _bater_mao_fechada(self, jogador):
         resultado = self.mesa.bater_mao_fechada(jogador)
         if resultado is not None:
-            self._registrar(f"{jogador.nome} bateu de mão fechada! +{resultado['pote']} fichas (dobrado)", YELLOW)
-            self.mesa.marcar_eliminados()
+            self._registrar(f"{jogador.nome} bateu de mão fechada! (vale 2 vitórias)", YELLOW)
         self._broadcast_estado()
 
     def _descartar(self, jogador, carta):
@@ -434,8 +430,7 @@ class PifPafTableScreen:
         if self.mesa.pode_bater_descartando(jogador, carta):
             resultado = self.mesa.bater_descartando(jogador, carta)
             if resultado is not None:
-                self._registrar(f"{jogador.nome} bateu descartando {_carta_str(carta)}! +{resultado['pote']} fichas", MINT)
-                self.mesa.marcar_eliminados()
+                self._registrar(f"{jogador.nome} bateu descartando {_carta_str(carta)}!", MINT)
                 self.carta_selecionada = None
                 self._broadcast_estado()
                 return
@@ -447,7 +442,7 @@ class PifPafTableScreen:
 
     def _comecar_proxima_mao_ou_finalizar(self):
         if self.mesa.jogo_tem_vencedor():
-            vencedor = self.mesa.jogadores_na_mesa()[0]
+            vencedor = self.mesa.vencedor_do_jogo()
             if self.sala_rede is not None:
                 self.sala_rede.enviar_para_todos({"tipo": protocolo.FIM_DE_JOGO, "vencedor": vencedor.nome})
             self.app.finalizar_jogo(vencedor.nome)
@@ -547,7 +542,7 @@ class PifPafTableScreen:
         desenhar_badge(tela, largura // 2, 30, f"MAO #{self.mesa.mao_numero}",
                         PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
         humano = self._jogador(self.id_humano)
-        desenhar_badge(tela, largura - 24, 30, f"VOCE: {humano.stack}",
+        desenhar_badge(tela, largura - 24, 30, f"VOCE: {humano.vitorias}/{VITORIAS_PARA_VENCER} VITORIAS",
                         YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
@@ -578,14 +573,6 @@ class PifPafTableScreen:
         desenhar_badge(tela, self.descarte_rect.centerx, self.descarte_rect.bottom + 18,
                         "DESCARTE", PANEL, cor_texto=INK, tamanho_fonte=10, borda=INK)
 
-        if self.mesa.vira is not None:
-            if self.mesa.usar_joker:
-                texto_vira = f"VIRA {_carta_str(self.mesa.vira)} (decorativa) — JOKERS SÃO CORINGA"
-            else:
-                texto_vira = f"VIRA {_carta_str(self.mesa.vira)}  →  CORINGA VALE {self.mesa.coringa_valor}"
-            desenhar_badge(tela, cx, mesa_rect.top + 30, texto_vira,
-                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=11, familia="mono", borda=INK)
-
     def _iniciais(self, nome):
         partes = nome.replace('"', "").split()
         if len(partes) >= 2:
@@ -610,22 +597,18 @@ class PifPafTableScreen:
             if eh_vez_dele:
                 desenhar_glow_de_vez(tela, x, y, *layout.obter("pifpaf.carta_oponente"), self.tempo_decorrido)
 
-            fundo = LOCKED if jogador.eliminado else PANEL
-            desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_humano else PALETA_AVATAR[jogador.id % len(PALETA_AVATAR)]
             cx_avatar = painel.x + 34
             desenhar_avatar(tela, cx_avatar, painel.centery, 22, cor_avatar, self._iniciais(jogador.nome))
 
-            cor_nome = TEXT_MUTED if jogador.eliminado else INK
             desenhar_texto(tela, jogador.nome, painel.x + 62, painel.y + 12, tamanho=13,
-                            cor=cor_nome, negrito=True)
-            desenhar_texto(tela, str(jogador.stack), painel.x + 62, painel.y + 30, tamanho=12,
+                            cor=INK, negrito=True)
+            desenhar_texto(tela, f"{jogador.vitorias} vit.", painel.x + 62, painel.y + 30, tamanho=12,
                             cor=TEXT_MUTED, familia="mono")
 
-            if jogador.eliminado:
-                status = "Eliminado"
-            elif (self.sala_rede is not None and jogador.tipo == TIPO_HUMANO_REMOTO
+            if (self.sala_rede is not None and jogador.tipo == TIPO_HUMANO_REMOTO
                     and jogador.id in self.sala_rede.desconectados):
                 status = "Desconectado"
             elif eh_humano:
@@ -638,9 +621,8 @@ class PifPafTableScreen:
                 status = f"{len(jogador.mao)} cartas"
 
             if status:
-                desenhar_badge(tela, painel.x + 62, painel.y + 48, status, MINT if not jogador.eliminado else LOCKED,
-                                cor_texto=(SOMBRA if not jogador.eliminado else INK),
-                                tamanho_fonte=9, ancorar="midleft")
+                desenhar_badge(tela, painel.x + 62, painel.y + 48, status, MINT,
+                                cor_texto=SOMBRA, tamanho_fonte=9, ancorar="midleft")
 
     # ---------------------------------------------------------------- Bandeja da mao
     def _rects_mao_humano(self, humano):
@@ -659,8 +641,6 @@ class PifPafTableScreen:
 
     def _desenhar_bandeja_mao(self, tela, largura, altura):
         humano = self._jogador(self.id_humano)
-        if humano.eliminado:
-            return
 
         pares = self._rects_mao_humano(humano)
         indice_arrastando = self.arraste["indice"] if (self.arraste and self.arraste["moveu"]) else None
@@ -775,20 +755,20 @@ class PifPafTableScreen:
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
 
         if resultado.get("empate"):
-            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem paga.",
+            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem pontua.",
                             painel.centerx, painel.y + 52, tamanho=14, cor=INK, centralizado=True, negrito=True)
             return
 
         if resultado.get("mao_fechada"):
-            texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou {resultado['pote']} fichas (dobrado)!"
+            texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou 2 vitórias!"
         else:
-            texto_vitoria = f"{resultado['vencedor']} bateu e ganhou {resultado['pote']} fichas!"
+            texto_vitoria = f"{resultado['vencedor']} bateu e ganhou a mão!"
         desenhar_texto(tela, texto_vitoria,
                         painel.centerx, painel.y + 52, tamanho=14, cor=INK, centralizado=True, negrito=True)
 
         y = painel.y + 82
         for d in resultado["detalhes"]:
-            desenhar_texto(tela, f"{d['jogador']} pagou {d['pontos']} pontos em cartas soltas",
+            desenhar_texto(tela, f"{d['jogador']} ficou com {d['pontos']} pontos em cartas soltas",
                             painel.centerx, y, tamanho=13, cor=TEXT_MUTED, centralizado=True)
             y += 26
 

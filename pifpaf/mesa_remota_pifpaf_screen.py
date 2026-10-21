@@ -8,7 +8,7 @@ Não roda nenhuma `PifPafTable` de verdade: guarda o último snapshot de
 a cada atualização para preservar a ordenação manual que o jogador já tiver
 feito (arrastar para organizar). As checagens de "posso bater agora?" são
 recalculadas localmente com as mesmas funções puras de `pifpaf_logic.py`
-(operam só sobre a própria mão + o valor do coringa, que já é público) -
+(operam só sobre a própria mão, já que o coringa é sempre o Joker impresso) -
 evita duplicar a regra e evita ida-e-volta de rede a cada carta selecionada.
 """
 import math
@@ -22,7 +22,7 @@ from core.ui_theme import (
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez,
 )
-from .pifpaf_logic import pode_bater_mao
+from .pifpaf_logic import pode_bater_mao, VITORIAS_PARA_VENCER
 from .pifpaf_screen import (
     posicoes_assentos, mesa_rect_para, topo_da_mao, posicao_selo_historico,
     LARGURA_PAINEL_ASSENTO, ALTURA_PAINEL_ASSENTO,
@@ -124,16 +124,13 @@ class MesaRemotaPifPafScreen:
             self.carta_selecionada = None
 
     # ---------------------------------------------------------------- Regras (locais, puras)
-    def _coringa_valor(self):
-        return self.estado.get("coringa_valor") if self.estado else None
-
     def _minha_mao_cards(self):
         return [Card(v, n) for v, n in self.minha_mao]
 
     def _pode_bater(self):
         if self.estado is None or not self.estado.get("comprou_nesta_vez"):
             return False
-        return pode_bater_mao(self._minha_mao_cards(), self._coringa_valor())
+        return pode_bater_mao(self._minha_mao_cards())
 
     def _pode_bater_mao_fechada(self):
         if self.estado is None or self.estado.get("comprou_nesta_vez"):
@@ -141,7 +138,7 @@ class MesaRemotaPifPafScreen:
         meu = self._meu_jogador()
         if meu is None or meu.get("ja_agiu_nesta_mao"):
             return False
-        return pode_bater_mao(self._minha_mao_cards(), self._coringa_valor())
+        return pode_bater_mao(self._minha_mao_cards())
 
     def _pode_bater_descartando(self, carta):
         if self.estado is None or not self.estado.get("comprou_nesta_vez"):
@@ -151,7 +148,7 @@ class MesaRemotaPifPafScreen:
         if alvo not in resto:
             return False
         resto.remove(alvo)
-        return pode_bater_mao(resto, self._coringa_valor())
+        return pode_bater_mao(resto)
 
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
@@ -201,7 +198,7 @@ class MesaRemotaPifPafScreen:
             return
 
         meu = self._meu_jogador()
-        if meu is None or meu["eliminado"]:
+        if meu is None:
             return
 
         # Arrastar/selecionar a própria mão é liberado a qualquer momento,
@@ -359,8 +356,8 @@ class MesaRemotaPifPafScreen:
         desenhar_badge(tela, largura // 2, 30, f"MAO #{self.estado['mao_numero']}",
                         PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
         meu = self._meu_jogador()
-        stack = meu["stack"] if meu else 0
-        desenhar_badge(tela, largura - 24, 30, f"VOCE: {stack}",
+        vitorias = meu["vitorias"] if meu else 0
+        desenhar_badge(tela, largura - 24, 30, f"VOCE: {vitorias}/{VITORIAS_PARA_VENCER} VITORIAS",
                         YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
@@ -391,15 +388,6 @@ class MesaRemotaPifPafScreen:
         desenhar_badge(tela, self.descarte_rect.centerx, self.descarte_rect.bottom + 18,
                         "DESCARTE", PANEL, cor_texto=INK, tamanho_fonte=10, borda=INK)
 
-        if self.estado.get("vira"):
-            vira = Card(*self.estado["vira"])
-            if self.estado.get("usar_joker"):
-                texto_vira = f"VIRA {_carta_str(vira)} (decorativa) — JOKERS SÃO CORINGA"
-            else:
-                texto_vira = f"VIRA {_carta_str(vira)}  →  CORINGA VALE {self.estado['coringa_valor']}"
-            desenhar_badge(tela, cx, mesa_rect.top + 30, texto_vira,
-                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=11, familia="mono", borda=INK)
-
     def _desenhar_jogadores(self, tela, mesa_rect):
         jogadores = self.estado["jogadores"]
         n = len(jogadores)
@@ -418,21 +406,17 @@ class MesaRemotaPifPafScreen:
             if eh_vez_dele:
                 desenhar_glow_de_vez(tela, x, y, *layout.obter("pifpaf.carta_oponente"), self.tempo_decorrido)
 
-            fundo = LOCKED if jogador["eliminado"] else PANEL
-            desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_eu else PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
             desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
 
-            cor_nome = TEXT_MUTED if jogador["eliminado"] else INK
             desenhar_texto(tela, jogador["nome"], painel.x + 62, painel.y + 12, tamanho=13,
-                            cor=cor_nome, negrito=True)
-            desenhar_texto(tela, str(jogador["stack"]), painel.x + 62, painel.y + 30, tamanho=12,
+                            cor=INK, negrito=True)
+            desenhar_texto(tela, f"{jogador['vitorias']} vit.", painel.x + 62, painel.y + 30, tamanho=12,
                             cor=TEXT_MUTED, familia="mono")
 
-            if jogador["eliminado"]:
-                status = "Eliminado"
-            elif jogador.get("desconectado"):
+            if jogador.get("desconectado"):
                 status = "Desconectado"
             elif eh_eu:
                 status = None
@@ -445,13 +429,11 @@ class MesaRemotaPifPafScreen:
 
             if status:
                 desenhar_badge(tela, painel.x + 62, painel.y + 48, status,
-                                MINT if not jogador["eliminado"] else LOCKED,
-                                cor_texto=(SOMBRA if not jogador["eliminado"] else INK),
-                                tamanho_fonte=9, ancorar="midleft")
+                                MINT, cor_texto=SOMBRA, tamanho_fonte=9, ancorar="midleft")
 
     def _desenhar_bandeja_mao(self, tela, largura, altura):
         meu = self._meu_jogador()
-        if meu is None or meu["eliminado"]:
+        if meu is None:
             return
 
         pares = self._rects_mao()
@@ -491,19 +473,19 @@ class MesaRemotaPifPafScreen:
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
 
         if resultado.get("empate"):
-            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem paga.",
+            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem pontua.",
                             painel.centerx, painel.y + 52, tamanho=14, cor=INK, centralizado=True, negrito=True)
         else:
             if resultado.get("mao_fechada"):
-                texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou {resultado['pote']} fichas (dobrado)!"
+                texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou 2 vitórias!"
             else:
-                texto_vitoria = f"{resultado['vencedor']} bateu e ganhou {resultado['pote']} fichas!"
+                texto_vitoria = f"{resultado['vencedor']} bateu e ganhou a mão!"
             desenhar_texto(tela, texto_vitoria, painel.centerx, painel.y + 52,
                             tamanho=14, cor=INK, centralizado=True, negrito=True)
 
             y = painel.y + 82
             for d in resultado["detalhes"]:
-                desenhar_texto(tela, f"{d['jogador']} pagou {d['pontos']} pontos em cartas soltas",
+                desenhar_texto(tela, f"{d['jogador']} ficou com {d['pontos']} pontos em cartas soltas",
                                 painel.centerx, y, tamanho=13, cor=TEXT_MUTED, centralizado=True)
                 y += 26
 

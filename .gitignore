@@ -7,4 +7,6 @@ design/
 # e config/presets_padrao/)
 config/layout.json
 config/presets/
+# saldo de fichas do jogador (Hold'em solo)
+config/carteira.json
 *.toml

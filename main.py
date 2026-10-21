@@ -27,7 +27,7 @@ from domino.domino_logic import (
 from domino.domino_screen import DominoTableScreen
 from core.settings import Settings
 from menus.multiplayer_screens import CriarSalaScreen, EntrarSalaScreen, LobbyScreen, MAX_JOGADORES_POR_JOGO
-from core import layout, ui_theme
+from core import carteira, layout, ui_theme
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
@@ -125,6 +125,11 @@ class App:
     def ir_para_lobby_cliente(self, sala_cliente):
         self.tela_atual = LobbyScreen(self, sala_cliente=sala_cliente)
 
+    def registrar_carteira(self, saldo):
+        """Chamado pela mesa de Hold'em solo; a mesa do editor (App falso)
+        não tem este método e por isso nunca mexe na carteira real."""
+        carteira.registrar(saldo)
+
     def encerrar(self):
         self.rodando = False
 
@@ -141,7 +146,15 @@ class App:
 
     def iniciar_partida(self, quantidade_bots):
         stack_inicial = self.settings.fichas_iniciais
-        jogadores = [Player(id_jogador=0, nome="Você", stack=stack_inicial, tipo=TIPO_HUMANO_LOCAL)]
+        # Hold'em solo: você entra com a carteira (saldo guardado entre sessões).
+        # (o App falso do editor visual não tem registrar_carteira: usa o padrão)
+        if hasattr(self, "registrar_carteira"):
+            saldo = carteira.saldo()
+            if saldo <= 0:
+                return  # carteira zerada, esperando a reposição (a ConfigScreen avisa)
+        else:
+            saldo = stack_inicial
+        jogadores = [Player(id_jogador=0, nome="Você", stack=saldo, tipo=TIPO_HUMANO_LOCAL)]
         for i in range(quantidade_bots):
             nome = NOMES_BOTS[i % len(NOMES_BOTS)]
             jogadores.append(Player(id_jogador=i + 1, nome=nome, stack=stack_inicial, tipo=TIPO_BOT))
@@ -169,11 +182,12 @@ class App:
             ClassePlayer, TIPO_LOCAL, TIPO_REMOTO, TIPO_BOT_ = (
                 Player, TIPO_HUMANO_LOCAL, TIPO_HUMANO_REMOTO, TIPO_BOT)
 
+        kwargs_fichas = {} if jogo == "pifpaf" else {"stack": stack_inicial}  # Pif Paf não usa fichas
         jogadores = []
         for participante in nomes_participantes:
             tipo = TIPO_LOCAL if participante["id"] == 0 else TIPO_REMOTO
             jogadores.append(ClassePlayer(id_jogador=participante["id"], nome=participante["nome"],
-                                           stack=stack_inicial, tipo=tipo))
+                                           tipo=tipo, **kwargs_fichas))
 
         if completar_com_bots:
             ids_usados = {j.id for j in jogadores}
@@ -182,7 +196,7 @@ class App:
             for i in range(vagas):
                 nome = NOMES_BOTS[i % len(NOMES_BOTS)]
                 jogadores.append(ClassePlayer(id_jogador=proximo_id + i, nome=nome,
-                                               stack=stack_inicial, tipo=TIPO_BOT_))
+                                               tipo=TIPO_BOT_, **kwargs_fichas))
 
         self.jogo_finalizado = False
         sala_rede.em_jogo = True
@@ -216,11 +230,10 @@ class App:
             self.tela_atual = MesaRemotaScreen(self, sala_cliente)
 
     def iniciar_partida_pifpaf(self, quantidade_bots):
-        stack_inicial = self.settings.fichas_iniciais
-        jogadores = [PifPafPlayer(id_jogador=0, nome="Você", stack=stack_inicial, tipo=PIFPAF_TIPO_HUMANO_LOCAL)]
+        jogadores = [PifPafPlayer(id_jogador=0, nome="Você", tipo=PIFPAF_TIPO_HUMANO_LOCAL)]
         for i in range(quantidade_bots):
             nome = NOMES_BOTS[i % len(NOMES_BOTS)]
-            jogadores.append(PifPafPlayer(id_jogador=i + 1, nome=nome, stack=stack_inicial, tipo=PIFPAF_TIPO_BOT))
+            jogadores.append(PifPafPlayer(id_jogador=i + 1, nome=nome, tipo=PIFPAF_TIPO_BOT))
 
         mesa = PifPafTable(jogadores, usar_joker=self.settings.usar_joker_pifpaf)
         self.jogo_finalizado = False
@@ -259,6 +272,9 @@ class App:
     def _processar_eventos(self):
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
+                salvar = getattr(self.tela_atual, "salvar_carteira", None)
+                if salvar:
+                    salvar()  # fechar a janela no meio da mão não livra da aposta
                 self.rodando = False
             elif evento.type == pygame.VIDEORESIZE:
                 # No pygame 2 a surface da janela já é redimensionada sozinha;
