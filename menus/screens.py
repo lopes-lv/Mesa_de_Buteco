@@ -2,6 +2,10 @@
 screens.py - Telas de Menu Inicial e Configuração (pré-jogo).
 A tela de Mesa/Gameplay fica em table_screen.py por ser mais extensa.
 """
+import os
+import subprocess
+import sys
+
 import pygame
 from core.ui_theme import (
     BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, MINT, LOCKED,
@@ -9,8 +13,20 @@ from core.ui_theme import (
     desenhar_kbd, desenhar_badge, obter_fonte,
 )
 from core.deck import Card
+from core import carteira
 from domino.domino_theme import desenhar_peca
 from core.settings import ROTULOS_VELOCIDADE, ROTULOS_BARALHO_SKIN
+
+# Editor visual de layout (tools/editor_visual.py): a tela de Ajustes tem um
+# botão que o abre num processo separado. Só existe rodando pelo código-fonte
+# - o .exe não inclui tools/. Ao salvar no editor, o jogo recarrega sozinho
+# (ver App._vigiar_layout em main.py).
+CAMINHO_EDITOR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "tools", "editor_visual.py")
+
+
+def editor_disponivel():
+    return not getattr(sys, "frozen", False) and os.path.exists(CAMINHO_EDITOR)
 
 
 class MenuScreen:
@@ -213,7 +229,15 @@ class ConfigScreen:
         self.botao_baralho_ant = pygame.Rect(0, 0, 40, 40)
         self.botao_baralho_prox = pygame.Rect(0, 0, 40, 40)
 
+    def _espera_carteira(self):
+        """Segundos até a carteira do Hold'em ser reposta (None = pode jogar)."""
+        if self.modo != "holdem":
+            return None
+        return carteira.segundos_para_reposicao()
+
     def _iniciar_partida(self):
+        if self._espera_carteira() is not None:
+            return
         if self.modo == "pifpaf":
             self.app.iniciar_partida_pifpaf(self.quantidade_bots)
         elif self.modo == "domino":
@@ -320,6 +344,15 @@ class ConfigScreen:
         desenhar_texto(tela, f"Mesa final: você + {self.quantidade_bots} bot(s) = {self.quantidade_bots + 1} jogadores",
                         painel.centerx, y_bots + 92, tamanho=13, cor=TEXT_MUTED, centralizado=True)
 
+        espera = self._espera_carteira()
+        if self.modo == "holdem":
+            if espera is None:
+                texto_carteira, cor_carteira = f"Sua carteira: {carteira.saldo()} fichas", INK
+            else:
+                texto_carteira, cor_carteira = f"Sem fichas — volta em {carteira.formatar_espera(espera)}", CORAL
+            desenhar_texto(tela, texto_carteira, painel.centerx, y_bots + 114, tamanho=13,
+                            cor=cor_carteira, negrito=True, centralizado=True)
+
         # ---- Preview do "baralho" (carta ou peça de dominó) ----
         y_deck = y_bots + 140
         if self.modo == "domino":
@@ -348,7 +381,8 @@ class ConfigScreen:
 
         self.botao_iniciar.center = (largura // 2, painel.bottom + 56)
         desenhar_botao(tela, self.botao_iniciar, "Iniciar Partida",
-                        hover=self.botao_iniciar.collidepoint(mouse_pos), tamanho_fonte=22)
+                        hover=espera is None and self.botao_iniciar.collidepoint(mouse_pos), tamanho_fonte=22,
+                        cor=YELLOW if espera is None else LOCKED)
         desenhar_kbd(tela, self.botao_iniciar.right - 16, self.botao_iniciar.centery, "Enter", ancorar="midright")
 
         self.botao_voltar.topleft = (30, 30)
@@ -372,12 +406,25 @@ class SettingsScreen:
         self.botao_joker_pifpaf = pygame.Rect(0, 0, 190, 48)
         self.botao_baralho_skin = pygame.Rect(0, 0, 190, 48)
         self.botao_selecao_pecas = pygame.Rect(0, 0, 190, 48)
+        self.botao_editor = pygame.Rect(0, 0, 0, 0)  # ganha tamanho só se o editor existir
+        self.aviso_editor = None
+
+    def _abrir_editor(self):
+        processo = getattr(self.app, "processo_editor", None)
+        if processo is not None and processo.poll() is None:
+            self.aviso_editor = "O editor já está aberto"
+            return
+        self.app.processo_editor = subprocess.Popen(
+            [sys.executable, CAMINHO_EDITOR], cwd=os.path.dirname(os.path.dirname(CAMINHO_EDITOR)))
+        self.aviso_editor = "Editor aberto - ao salvar lá, o jogo atualiza sozinho"
 
     def tratar_evento(self, evento):
         settings = self.app.settings
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_voltar.collidepoint(evento.pos):
                 self.app.ir_para_menu()
+            elif self.botao_editor.collidepoint(evento.pos):
+                self._abrir_editor()
             elif self.botao_tela_cheia.collidepoint(evento.pos):
                 self.app.alternar_tela_cheia()
             elif self.botao_velocidade.collidepoint(evento.pos):
@@ -487,3 +534,13 @@ class SettingsScreen:
         self.botao_voltar.topleft = (30, 30)
         desenhar_botao(tela, self.botao_voltar, "< Voltar",
                         hover=self.botao_voltar.collidepoint(mouse_pos), tamanho_fonte=15, cor=PANEL)
+
+        if editor_disponivel():
+            self.botao_editor.size = (230, 48)
+            self.botao_editor.topright = (largura - 30, 30)
+            desenhar_botao(tela, self.botao_editor, "Editor de layout",
+                            hover=self.botao_editor.collidepoint(mouse_pos), tamanho_fonte=15, cor=PANEL)
+            dica = self.aviso_editor or "F5 recarrega o layout em qualquer tela"
+            largura_dica = obter_fonte(12).size(dica)[0]
+            desenhar_texto(tela, dica, self.botao_editor.right - largura_dica, self.botao_editor.bottom + 14,
+                            tamanho=12, cor=MINT if self.aviso_editor else TEXT_MUTED)

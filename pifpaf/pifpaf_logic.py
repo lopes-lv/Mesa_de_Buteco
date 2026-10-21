@@ -1,10 +1,10 @@
 """
 pifpaf_logic.py - Motor do modo de jogo Pif Paf.
 
-Ver PIF_PAF_GUIA.md para o resumo das regras e as decisões de design.
+Ver pifpaf/README.md para o resumo das regras e as decisões de design.
 Contém:
- - PifPafPlayer: estado de cada jogador (stack, mao, elimincao)
- - Baralho duplo (104 cartas) e sorteio da vira/coringa
+ - PifPafPlayer: estado de cada jogador (vitorias, mao)
+ - Baralho duplo (104 cartas), com 4 Jokers impressos opcionais como coringa
  - Validacao de combinacoes (trinca / sequencia), com suporte a coringa
  - PifPafTable: orquestra uma mao completa (distribuir -> turnos -> batida -> liquidacao)
 """
@@ -13,7 +13,7 @@ from itertools import combinations
 
 from core.deck import NAIPES, VALORES, NAIPE_CORINGA, VALOR_CORINGA, Card
 
-STACK_INICIAL = 1500
+VITORIAS_PARA_VENCER = 3  # quem bater primeiro N maos vence a partida
 LIMITE_TURNOS_SEM_BATIDA = 200
 JOKERS_POR_BARALHO_DUPLO = 4  # 2 por copia de 52, baralho duplo = 4
 
@@ -26,32 +26,22 @@ TIPO_HUMANO_REMOTO = "humano_remoto"
 
 def criar_baralho_duplo(usar_joker=False):
     """Dois baralhos de 52 cartas combinados (104 cartas). Com `usar_joker`,
-    acrescenta 4 Jokers impressos (2 por copia de 52) como unico coringa da
-    mao - nesse modo a vira nao gera mais coringa por valor (ver `eh_coringa`
-    e `PifPafTable.iniciar_nova_mao`)."""
+    acrescenta 4 Jokers impressos (2 por copia de 52), o unico coringa do
+    jogo (ver `eh_coringa`)."""
     baralho = [Card(v, n) for _ in range(2) for n in NAIPES for v in VALORES]
     if usar_joker:
         baralho += [Card(VALOR_CORINGA, NAIPE_CORINGA) for _ in range(JOKERS_POR_BARALHO_DUPLO)]
     return baralho
 
 
-def _valor_seguinte(valor):
-    return 2 if valor == 14 else valor + 1
+def eh_coringa(carta):
+    """True se `carta` e um Joker impresso (unico coringa do Pif Paf)."""
+    return carta.naipe == NAIPE_CORINGA
 
 
-def eh_coringa(carta, coringa_valor):
-    """True se `carta` funciona como coringa nesta mao: ou e um Joker
-    impresso (sempre coringa, independente de `coringa_valor`), ou tem o
-    valor da vira (quando a mao usa o sistema tradicional - `coringa_valor`
-    fica None quando a mesa usa Joker impresso, ver iniciar_nova_mao)."""
-    if carta.naipe == NAIPE_CORINGA:
-        return True
-    return coringa_valor is not None and carta.valor == coringa_valor
-
-
-def valor_pontos(carta, coringa_valor):
+def valor_pontos(carta):
     """Pontuacao de uma carta solta (nao combinada) ao fim da mao."""
-    if eh_coringa(carta, coringa_valor):
+    if eh_coringa(carta):
         return 20
     if carta.valor == 14:
         return 15
@@ -123,13 +113,13 @@ def _candidatos_para_carta(carta, cartas_disponiveis, coringas_disp):
     return candidatos
 
 
-def carta_completa_combinacao(carta, mao, coringa_valor):
+def carta_completa_combinacao(carta, mao):
     """True se `carta` (candidata a compra) formaria, junto de cartas ja na
     mao, um grupo real (2+ cartas naturais associadas a ela) - usado pela
     IA para decidir se vale a pena comprar do descarte."""
-    if eh_coringa(carta, coringa_valor):
+    if eh_coringa(carta):
         return True
-    coringas_disp = sum(1 for c in mao if eh_coringa(c, coringa_valor))
+    coringas_disp = sum(1 for c in mao if eh_coringa(c))
     candidatos = _candidatos_para_carta(carta, mao + [carta], coringas_disp)
     return any(len(cartas_grupo) >= 2 for cartas_grupo, _ in candidatos)
 
@@ -153,20 +143,20 @@ def _encaixar_tudo(naturais, coringas_disp):
     return None
 
 
-def pode_bater_mao(mao, coringa_valor):
+def pode_bater_mao(mao):
     """True se a mao inteira (9 ou 10 cartas) pode ser organizada em
     trincas/sequencias validas, sem nenhuma carta solta."""
-    naturais = [c for c in mao if not eh_coringa(c, coringa_valor)]
+    naturais = [c for c in mao if not eh_coringa(c)]
     n_coringas = len(mao) - len(naturais)
     return _encaixar_tudo(naturais, n_coringas) is not None
 
 
-def agrupar_para_bater(mao, coringa_valor):
+def agrupar_para_bater(mao):
     """Retorna os grupos (listas de Card) que zeram a mao, ou None se a mao
     nao pode bater. Coringas usados para completar um grupo sao anexados
     ao final da lista de cartas naturais daquele grupo."""
-    naturais = [c for c in mao if not eh_coringa(c, coringa_valor)]
-    coringas = [c for c in mao if eh_coringa(c, coringa_valor)]
+    naturais = [c for c in mao if not eh_coringa(c)]
+    coringas = [c for c in mao if eh_coringa(c)]
     grupos = _encaixar_tudo(naturais, len(coringas))
     if grupos is None:
         return None
@@ -179,13 +169,13 @@ def agrupar_para_bater(mao, coringa_valor):
     return grupos_finais
 
 
-def calcular_pontos_soltos(mao, coringa_valor):
+def calcular_pontos_soltos(mao):
     """Agrupa a mao de forma gulosa (sempre pegando o maior grupo valido
     disponivel) para minimizar as cartas soltas, e retorna
     (grupos, cartas_soltas, pontos_soltos). Usado para pontuar quem nao
     bateu - nao precisa ser a organizacao perfeita, so uma organizacao
     razoavel (times reais tambem nem sempre acham o encaixe otimo)."""
-    naturais = [c for c in mao if not eh_coringa(c, coringa_valor)]
+    naturais = [c for c in mao if not eh_coringa(c)]
     coringas_disp = len(mao) - len(naturais)
     grupos = []
 
@@ -207,19 +197,18 @@ def calcular_pontos_soltos(mao, coringa_valor):
             progrediu = True
 
     soltas = naturais
-    pontos = sum(valor_pontos(c, coringa_valor) for c in soltas) + coringas_disp * 20
+    pontos = sum(valor_pontos(c) for c in soltas) + coringas_disp * 20
     return grupos, soltas, pontos
 
 
 # ---------------------------------------------------------------- Jogador
 class PifPafPlayer:
-    def __init__(self, id_jogador, nome, stack=STACK_INICIAL, tipo=TIPO_BOT):
+    def __init__(self, id_jogador, nome, tipo=TIPO_BOT):
         self.id = id_jogador
         self.nome = nome
-        self.stack = stack
+        self.vitorias = 0  # maos vencidas (bateu primeiro) nesta partida
         self.tipo = tipo
         self.mao = []
-        self.eliminado = stack <= 0
 
     @property
     def is_bot(self):
@@ -227,7 +216,6 @@ class PifPafPlayer:
 
     def reset_para_mao(self):
         self.mao = []
-        self.eliminado = self.stack <= 0
 
 
 # ---------------------------------------------------------------- Mesa
@@ -240,8 +228,6 @@ class PifPafTable:
 
         self.monte = []
         self.descarte = []
-        self.vira = None
-        self.coringa_valor = None
 
         self._ordem = []
         self.indice_da_vez = 0
@@ -250,10 +236,14 @@ class PifPafTable:
         self.jogadores_ja_agiram_na_mao = set()  # ids que ja compraram/descartaram nesta mao
 
     def jogadores_na_mesa(self):
-        return [j for j in self.jogadores if not j.eliminado]
+        return list(self.jogadores)
+
+    def vencedor_do_jogo(self):
+        """Quem chegou a `VITORIAS_PARA_VENCER` maos vencidas (None se ninguem)."""
+        return next((j for j in self.jogadores if j.vitorias >= VITORIAS_PARA_VENCER), None)
 
     def jogo_tem_vencedor(self):
-        return len(self.jogadores_na_mesa()) <= 1
+        return self.vencedor_do_jogo() is not None
 
     # ------------------------------------------------------------ Mao
     def iniciar_nova_mao(self):
@@ -268,11 +258,6 @@ class PifPafTable:
 
         baralho = criar_baralho_duplo(self.usar_joker)
         random.shuffle(baralho)
-
-        self.vira = baralho.pop()
-        # Com Joker impresso, a vira e so decorativa/define quem comeca -
-        # o unico coringa da mao e a carta de Joker (ver eh_coringa()).
-        self.coringa_valor = None if self.usar_joker else _valor_seguinte(self.vira.valor)
 
         for j in ordem:
             j.mao = []
@@ -334,7 +319,7 @@ class PifPafTable:
     def pode_bater(self, jogador):
         if not self.comprou_nesta_vez or self.resultado_mao is not None:
             return False
-        return pode_bater_mao(jogador.mao, self.coringa_valor)
+        return pode_bater_mao(jogador.mao)
 
     def pode_bater_mao_fechada(self, jogador):
         """'Mao fechada': bater sem comprar, valendo so na primeira vez que
@@ -346,10 +331,10 @@ class PifPafTable:
             return False
         if jogador.id in self.jogadores_ja_agiram_na_mao:
             return False
-        return pode_bater_mao(jogador.mao, self.coringa_valor)
+        return pode_bater_mao(jogador.mao)
 
     def bater(self, jogador):
-        grupos = agrupar_para_bater(jogador.mao, self.coringa_valor)
+        grupos = agrupar_para_bater(jogador.mao)
         if grupos is None:
             return None
         self.resultado_mao = self._liquidar(jogador, grupos)
@@ -359,7 +344,7 @@ class PifPafTable:
     def bater_mao_fechada(self, jogador):
         if not self.pode_bater_mao_fechada(jogador):
             return None
-        grupos = agrupar_para_bater(jogador.mao, self.coringa_valor)
+        grupos = agrupar_para_bater(jogador.mao)
         if grupos is None:
             return None
         self.resultado_mao = self._liquidar(jogador, grupos, multiplicador=2)
@@ -378,14 +363,14 @@ class PifPafTable:
             return False
         resto = list(jogador.mao)
         resto.remove(carta)
-        return pode_bater_mao(resto, self.coringa_valor)
+        return pode_bater_mao(resto)
 
     def bater_descartando(self, jogador, carta):
         if not self.pode_bater_descartando(jogador, carta):
             return None
         resto = list(jogador.mao)
         resto.remove(carta)
-        grupos = agrupar_para_bater(resto, self.coringa_valor)
+        grupos = agrupar_para_bater(resto)
         if grupos is None:
             return None
         jogador.mao.remove(carta)
@@ -406,30 +391,22 @@ class PifPafTable:
             # nenhum jogador com uma boa combinacao a vista): a mao empata,
             # ninguem paga, e o jogo segue para a proxima. Evita travar a
             # partida indefinidamente por causa de uma distribuicao ruim.
-            self.resultado_mao = {"vencedor": None, "pote": 0, "detalhes": [], "grupos": None,
+            self.resultado_mao = {"vencedor": None, "vitorias_ganhas": 0, "detalhes": [], "grupos": None,
                                    "empate": True, "mao_fechada": False}
 
-    def marcar_eliminados(self):
-        for j in self.jogadores_na_mesa():
-            if j.stack <= 0:
-                j.eliminado = True
-
     def _liquidar(self, batedor, grupos_batedor, multiplicador=1):
-        pote = 0
+        """Registra a vitoria da mao (`multiplicador` = 2 na mao fechada). Os
+        pontos soltos dos adversarios entram so como informacao na tela."""
+        batedor.vitorias += multiplicador
         detalhes = []
-        for j in self.jogadores_na_mesa():
+        for j in self.jogadores:
             if j is batedor:
                 continue
-            _, soltas, pontos = calcular_pontos_soltos(j.mao, self.coringa_valor)
-            pontos *= multiplicador
-            pontos_pagos = min(pontos, j.stack)
-            j.stack -= pontos_pagos
-            pote += pontos_pagos
-            detalhes.append({"jogador": j.nome, "pontos": pontos_pagos, "cartas_soltas": soltas})
-        batedor.stack += pote
+            _, soltas, pontos = calcular_pontos_soltos(j.mao)
+            detalhes.append({"jogador": j.nome, "pontos": pontos, "cartas_soltas": soltas})
         return {
             "vencedor": batedor.nome,
-            "pote": pote,
+            "vitorias_ganhas": multiplicador,
             "detalhes": detalhes,
             "grupos": grupos_batedor,
         }

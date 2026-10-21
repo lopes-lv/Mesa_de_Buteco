@@ -1,6 +1,6 @@
 """
 domino_screen.py - Tela principal de gameplay do modo Dominó (corrida de
-pontos até 250 - ver domino_logic.py e MELHORIAS.md).
+pontos até 250 - ver domino_logic.py e domino/README.md).
 
 Não existe mais compra: cada jogador já recebe na mão todas as peças que vai
 ter na mão inteira (sem monte, ver domino_logic.criar_pecas). O jogador tem
@@ -32,11 +32,27 @@ from .domino_logic import (
 )
 from .domino_bot_ai import escolher_jogada_bot
 from core.chat_widget import ChatWidget
+from core import layout
 from rede import protocolo
 
-DELAY_BOT_SEGUNDOS = 0.7
-TAMANHO_PECA_MAO = (46, 92)
-TAMANHO_PECA_MESA = (72, 36)  # (comprimento, espessura) - peça normal em pé numa linha horizontal
+# Tamanhos de peça, espaçamentos e botões vêm de core/layout.py (chaves
+# "domino.*" e "geral.*"), compartilhados com mesa_remota_domino_screen.py;
+# o tempo de jogada dos bots também ("domino.delay_bot_ms").
+# "domino.peca_mesa" é (comprimento, espessura) de uma peça normal deitada
+# numa linha horizontal, no tamanho máximo - _layout_mesa() só reduz a partir
+# dele pra caber no feltro.
+
+# Geometria da mesa (a mesma em mesa_remota_domino_screen.py): o feltro fica
+# centrado em 44% da altura (era 36%) e os assentos da metade de cima ficam a
+# só FOLGA_ASSENTO_CIMA px dele (os de baixo seguem a FOLGA_ASSENTO_BAIXO) -
+# antes o assento do topo, com 4 jogadores, saía pela borda superior da tela
+# e disputava espaço com os selos "MÃO #n"/"Vez de".
+CENTRO_MESA_Y = 0.44
+FOLGA_ASSENTO_CIMA = 36
+FOLGA_ASSENTO_BAIXO = 70
+FOLGA_BOTAO_PASSAR = 24  # distância do "Passar" para a ponta da mão
+MEIA_LARGURA_ASSENTO = 97  # metade do painel (178px) + folga: o centro de um assento nunca fica
+                           # mais perto da borda da tela que isso (em 1024px os laterais saíam)
 
 PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
 
@@ -45,13 +61,26 @@ def _horizontal(direcao):
     return direcao in ("esquerda", "direita")
 
 
+def posicionar_botao_passar(botao, rects_mao, largura, altura):
+    """Põe o botão "Passar" à direita da mão, centrado nela; se não couber na
+    tela, à esquerda. Sem mão (não deveria acontecer na vez do jogador), no
+    rodapé. Usado também por mesa_remota_domino_screen.py."""
+    if not rects_mao:
+        botao.center = (largura // 2, altura - 46)
+        return
+    centro_y = rects_mao[0].centery
+    botao.midleft = (rects_mao[-1].right + FOLGA_BOTAO_PASSAR, centro_y)
+    if botao.right > largura - 16:
+        botao.midright = (rects_mao[0].left - FOLGA_BOTAO_PASSAR, centro_y)
+
+
 def _tamanho_peca(direcao, eh_carroca, escala=1.0):
     """(largura, altura) de renderização pra uma peça nesse ramo. Ramos
     horizontais (esquerda/direita) crescem deitados (peça normal em
     paisagem); ramos verticais (cima/baixo) crescem em pé (peça normal em
     retrato). Carroças sempre viram perpendicular ao crescimento do ramo
     ("carroça deitada")."""
-    comprimento, espessura = TAMANHO_PECA_MESA
+    comprimento, espessura = layout.obter("domino.peca_mesa")
     retrato = eh_carroca if _horizontal(direcao) else not eh_carroca
     largura, altura = (espessura, comprimento) if retrato else (comprimento, espessura)
     return int(largura * escala), int(altura * escala)
@@ -82,9 +111,10 @@ class DominoTableScreen:
         self.pecas_para_escolher = []
         self._qtd_embaralhando = 0
 
-        self.botao_continuar = pygame.Rect(0, 0, 240, 56)
-        self.botao_sair = pygame.Rect(0, 0, 110, 44)
-        self.botao_passar = pygame.Rect(0, 0, 160, 52)
+        self.botao_continuar = pygame.Rect(0, 0, 0, 0)
+        self.botao_sair = pygame.Rect(0, 0, 0, 0)
+        self.botao_passar = pygame.Rect(0, 0, 0, 0)
+        self._dimensionar_botoes()
 
         self.historico = deque(maxlen=1)
         self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
@@ -371,7 +401,7 @@ class DominoTableScreen:
 
         if jogador_da_vez.is_bot or desconectado:
             self.timer_bot += dt
-            if self.timer_bot < DELAY_BOT_SEGUNDOS:
+            if self.timer_bot < layout.obter("domino.delay_bot_ms") / 1000:
                 return
             self.timer_bot = 0.0
             if not self.mesa.pode_jogar(jogador_da_vez):
@@ -388,10 +418,19 @@ class DominoTableScreen:
     def _mesa_rect(self):
         largura, altura = pygame.display.get_surface().get_size()
         mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
-        mesa_rect.center = (largura // 2, int(altura * 0.36))
+        mesa_rect.center = (largura // 2, int(altura * CENTRO_MESA_Y))
         return mesa_rect
 
+    def _dimensionar_botoes(self):
+        """Tamanhos dos botões vêm de core/layout.py. Reaplicado a cada
+        desenhar() pra um layout alterado (editor visual, recarregar) valer
+        sem recriar a tela - a posição é definida depois, no próprio desenho."""
+        self.botao_continuar.size = layout.obter("geral.botao_continuar")
+        self.botao_sair.size = layout.obter("geral.botao_sair")
+        self.botao_passar.size = layout.obter("domino.botao_passar")
+
     def desenhar(self, tela):
+        self._dimensionar_botoes()
         largura, altura = tela.get_size()
         tela.fill(BG)
 
@@ -426,8 +465,8 @@ class DominoTableScreen:
             self._desenhar_controles(tela, largura, altura)
 
     def _rects_pilha_escolha(self, mesa_rect):
-        largura_peca, altura_peca = 40, 80
-        espaco = 10
+        largura_peca, altura_peca = layout.obter("domino.peca_pilha_escolha")
+        espaco = layout.obter("domino.espaco_pilha_escolha")
         pecas = self.pecas_para_escolher
         n = len(pecas)
         por_linha = min(7, max(1, n))
@@ -497,8 +536,8 @@ class DominoTableScreen:
         cada ramo ativo agora (onde soltar/clicar pra jogar nessa
         direção)."""
         mesa = self.mesa
-        largura_base, altura_base = TAMANHO_PECA_MESA
-        espaco = 4
+        largura_base, altura_base = layout.obter("domino.peca_mesa")
+        espaco = layout.obter("domino.espaco_mesa")
 
         if mesa.mesa_vazia():
             zona = pygame.Rect(0, 0, largura_base + 24, altura_base + 24)
@@ -682,16 +721,18 @@ class DominoTableScreen:
         for i in range(n_jogadores):
             ang = math.radians(angulos[i])
             rx = mesa_rect.width // 2 + 70
-            ry = mesa_rect.height // 2 + 70
+            ry = mesa_rect.height // 2 + (FOLGA_ASSENTO_CIMA if math.sin(ang) < 0 else FOLGA_ASSENTO_BAIXO)
             x = mesa_rect.centerx + int(rx * math.cos(ang))
             y = mesa_rect.centery + int(ry * math.sin(ang))
+            largura_tela = mesa_rect.centerx * 2  # a mesa é centrada na janela
+            x = max(MEIA_LARGURA_ASSENTO, min(largura_tela - MEIA_LARGURA_ASSENTO, x))
             posicoes.append((x, y))
         return posicoes
 
     # ---------------------------------------------------------------- Bandeja da mão
     def _rects_mao(self, pecas):
-        largura_peca, altura_peca = TAMANHO_PECA_MAO
-        espaco = 8
+        largura_peca, altura_peca = layout.obter("domino.peca_mao")
+        espaco = layout.obter("domino.espaco_mao")
         n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
         largura_tela, altura_tela = pygame.display.get_surface().get_size()
@@ -727,7 +768,7 @@ class DominoTableScreen:
                           vertical=True, destaque=destaque)
 
         if self.peca_arrastando is not None:
-            largura_peca, altura_peca = TAMANHO_PECA_MAO
+            largura_peca, altura_peca = layout.obter("domino.peca_mao")
             x = self.pos_arraste[0] - largura_peca // 2
             y = self.pos_arraste[1] - altura_peca // 2
             desenhar_peca(tela, x, y, largura_peca, altura_peca,
@@ -751,9 +792,12 @@ class DominoTableScreen:
 
         humano = self._jogador(self.id_humano)
         if not self.mesa.pode_jogar(humano):
+            # Ao lado da mão (que fica sem peça jogável): embaixo dela não cabe -
+            # a mão termina em altura - 40 e ficava por cima do botão e da dica.
             desenhar_texto(tela, "Você não tem peça pra jogar — clique em Passar",
-                            largura // 2, altura - 84, tamanho=13, cor=TEXT_MUTED, centralizado=True)
-            self.botao_passar.center = (largura // 2, altura - 46)
+                            largura // 2, altura - 20, tamanho=13, cor=TEXT_MUTED, centralizado=True)
+            posicionar_botao_passar(self.botao_passar, [r for r, _ in self._rects_mao_humano(humano)],
+                                     largura, altura)
             mouse_pos = pygame.mouse.get_pos()
             desenhar_botao(tela, self.botao_passar, "Passar",
                             hover=self.botao_passar.collidepoint(mouse_pos), tamanho_fonte=16, cor=CORAL)
@@ -797,7 +841,7 @@ class DominoTableScreen:
 
     def _desenhar_tela_final(self, tela, largura, altura):
         overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        overlay.fill((*INK, 150))
+        overlay.fill((*INK[:3], 150))
         tela.blit(overlay, (0, 0))
 
         painel = pygame.Rect(0, 0, 440, 220)

@@ -1,0 +1,30 @@
+{
+  "_sobre": "Cartas, peças, botões e textos menores - para janelas pequenas e notebooks (1024x768, 1366x768).",
+  "geral": {
+    "botao_sair": [100, 40],
+    "botao_continuar": [220, 50],
+    "escala_fonte": 90
+  },
+  "holdem": {
+    "carta_jogador": [86, 120],
+    "carta_oponente": [40, 56],
+    "carta_comunitaria": [56, 78],
+    "botao_acao": [150, 60],
+    "botao_confirmar_raise": [160, 44],
+    "botao_cancelar_raise": [120, 44]
+  },
+  "pifpaf": {
+    "carta_mao": [58, 80],
+    "carta_monte": [54, 76],
+    "carta_oponente": [40, 56],
+    "botao_compra": [206, 50],
+    "botao_mao_fechada": [170, 50],
+    "botao_jogada": [206, 50]
+  },
+  "domino": {
+    "peca_mao": [40, 80],
+    "peca_mesa": [64, 32],
+    "peca_pilha_escolha": [36, 72],
+    "botao_passar": [144, 46]
+  }
+}

@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('config/layout_padrao.json', 'config'), ('config/presets_padrao/*.json', 'config/presets_padrao')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

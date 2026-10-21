@@ -8,7 +8,7 @@ Não roda nenhuma `PifPafTable` de verdade: guarda o último snapshot de
 a cada atualização para preservar a ordenação manual que o jogador já tiver
 feito (arrastar para organizar). As checagens de "posso bater agora?" são
 recalculadas localmente com as mesmas funções puras de `pifpaf_logic.py`
-(operam só sobre a própria mão + o valor do coringa, que já é público) -
+(operam só sobre a própria mão, já que o coringa é sempre o Joker impresso) -
 evita duplicar a regra e evita ida-e-volta de rede a cada carta selecionada.
 """
 import math
@@ -22,13 +22,17 @@ from core.ui_theme import (
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez,
 )
-from .pifpaf_logic import pode_bater_mao
+from .pifpaf_logic import pode_bater_mao, VITORIAS_PARA_VENCER
+from .pifpaf_screen import (
+    posicoes_assentos, mesa_rect_para, topo_da_mao, posicao_selo_historico,
+    LARGURA_PAINEL_ASSENTO, ALTURA_PAINEL_ASSENTO,
+)
 from core.chat_widget import ChatWidget
+from core import layout
 from rede import protocolo
 
-CARTA_BOT_TAMANHO = (46, 64)
-CARTA_MAO_TAMANHO = (66, 92)
-CARTA_MONTE_TAMANHO = (60, 84)
+# Tamanhos de carta, espaçamentos e botões: mesmas chaves "pifpaf.*"/"geral.*"
+# de core/layout.py que pifpaf_screen.py usa.
 LIMIAR_ARRASTO_PX = 6
 
 PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
@@ -38,34 +42,6 @@ NAIPE_UNICODE = {"H": "♥", "D": "♦", "C": "♣", "S": "♠"}
 
 def _carta_str(carta):
     return f"{carta.texto}{NAIPE_UNICODE.get(carta.simbolo_naipe, carta.simbolo_naipe)}"
-
-
-def _posicoes_assentos(mesa_rect, n_jogadores):
-    """Mesmos ângulos fixos de pifpaf_screen.py."""
-    if n_jogadores == 2:
-        angulos = [90, 180]
-    elif n_jogadores == 3:
-        angulos = [90, 180, 0]
-    elif n_jogadores == 4:
-        angulos = [90, 180, 225, 0]
-    elif n_jogadores == 5:
-        angulos = [90, 150, 210, 330, 30]
-    elif n_jogadores == 6:
-        angulos = [90, 135, 180, 225, 315, 0]
-    elif n_jogadores == 7:
-        angulos = [90, 135, 180, 225, 315, 0, 45]
-    else:
-        angulos = [90, 125, 160, 195, 230, 310, 350, 30]
-
-    posicoes = []
-    for i in range(n_jogadores):
-        ang = math.radians(angulos[i])
-        rx = mesa_rect.width // 2 + 70
-        ry = mesa_rect.height // 2 + 70
-        x = mesa_rect.centerx + int(rx * math.cos(ang))
-        y = mesa_rect.centery + int(ry * math.sin(ang))
-        posicoes.append((x, y))
-    return posicoes
 
 
 def _iniciais(nome):
@@ -94,14 +70,15 @@ class MesaRemotaPifPafScreen:
 
         self.chat = ChatWidget(self._enviar_chat)
 
-        self.botao_monte = pygame.Rect(0, 0, 230, 56)
-        self.botao_descarte = pygame.Rect(0, 0, 230, 56)
-        self.botao_mao_fechada = pygame.Rect(0, 0, 190, 56)
-        self.botao_bater = pygame.Rect(0, 0, 150, 56)
-        self.botao_descartar = pygame.Rect(0, 0, 150, 56)
-        self.botao_sair = pygame.Rect(0, 0, 110, 44)
-        self.monte_rect = pygame.Rect(0, 0, *CARTA_MONTE_TAMANHO)
-        self.descarte_rect = pygame.Rect(0, 0, *CARTA_MONTE_TAMANHO)
+        self.botao_monte = pygame.Rect(0, 0, 0, 0)
+        self.botao_descarte = pygame.Rect(0, 0, 0, 0)
+        self.botao_mao_fechada = pygame.Rect(0, 0, 0, 0)
+        self.botao_bater = pygame.Rect(0, 0, 0, 0)
+        self.botao_descartar = pygame.Rect(0, 0, 0, 0)
+        self.botao_sair = pygame.Rect(0, 0, 0, 0)
+        self._dimensionar_botoes()
+        self.monte_rect = pygame.Rect(0, 0, *layout.obter("pifpaf.carta_monte"))
+        self.descarte_rect = pygame.Rect(0, 0, *layout.obter("pifpaf.carta_monte"))
 
     # ---------------------------------------------------------------- Estado
     def _enviar_chat(self, texto):
@@ -147,16 +124,13 @@ class MesaRemotaPifPafScreen:
             self.carta_selecionada = None
 
     # ---------------------------------------------------------------- Regras (locais, puras)
-    def _coringa_valor(self):
-        return self.estado.get("coringa_valor") if self.estado else None
-
     def _minha_mao_cards(self):
         return [Card(v, n) for v, n in self.minha_mao]
 
     def _pode_bater(self):
         if self.estado is None or not self.estado.get("comprou_nesta_vez"):
             return False
-        return pode_bater_mao(self._minha_mao_cards(), self._coringa_valor())
+        return pode_bater_mao(self._minha_mao_cards())
 
     def _pode_bater_mao_fechada(self):
         if self.estado is None or self.estado.get("comprou_nesta_vez"):
@@ -164,7 +138,7 @@ class MesaRemotaPifPafScreen:
         meu = self._meu_jogador()
         if meu is None or meu.get("ja_agiu_nesta_mao"):
             return False
-        return pode_bater_mao(self._minha_mao_cards(), self._coringa_valor())
+        return pode_bater_mao(self._minha_mao_cards())
 
     def _pode_bater_descartando(self, carta):
         if self.estado is None or not self.estado.get("comprou_nesta_vez"):
@@ -174,7 +148,7 @@ class MesaRemotaPifPafScreen:
         if alvo not in resto:
             return False
         resto.remove(alvo)
-        return pode_bater_mao(resto, self._coringa_valor())
+        return pode_bater_mao(resto)
 
     # ---------------------------------------------------------------- Update
     def atualizar(self, dt):
@@ -224,7 +198,7 @@ class MesaRemotaPifPafScreen:
             return
 
         meu = self._meu_jogador()
-        if meu is None or meu["eliminado"]:
+        if meu is None:
             return
 
         # Arrastar/selecionar a própria mão é liberado a qualquer momento,
@@ -241,13 +215,13 @@ class MesaRemotaPifPafScreen:
             self._tratar_tecla(evento.key)
 
     def _rects_mao(self):
-        largura_carta, altura_carta = CARTA_MAO_TAMANHO
-        espaco = 10
+        largura_carta, altura_carta = layout.obter("pifpaf.carta_mao")
+        espaco = layout.obter("pifpaf.espaco_mao")
         n = len(self.minha_mao)
         total_largura = n * largura_carta + (n - 1) * espaco
         largura_tela, altura_tela = pygame.display.get_surface().get_size()
         x0 = largura_tela // 2 - total_largura // 2
-        y0 = altura_tela - altura_carta - 120
+        y0 = topo_da_mao(largura_tela, altura_tela, altura_carta)
         pares = []
         for i, carta in enumerate(self.minha_mao):
             rect = pygame.Rect(x0 + i * (largura_carta + espaco), y0, largura_carta, altura_carta)
@@ -330,7 +304,17 @@ class MesaRemotaPifPafScreen:
             self.carta_selecionada = None
 
     # ---------------------------------------------------------------- Desenho
+    def _dimensionar_botoes(self):
+        """Tamanhos dos botões vêm de core/layout.py. Reaplicado a cada
+        desenhar() pra um layout alterado (editor visual, recarregar) valer
+        sem recriar a tela - a posição é definida depois, no próprio desenho."""
+        self.botao_monte.size = self.botao_descarte.size = layout.obter("pifpaf.botao_compra")
+        self.botao_mao_fechada.size = layout.obter("pifpaf.botao_mao_fechada")
+        self.botao_bater.size = self.botao_descartar.size = layout.obter("pifpaf.botao_jogada")
+        self.botao_sair.size = layout.obter("geral.botao_sair")
+
     def desenhar(self, tela):
+        self._dimensionar_botoes()
         largura, altura = tela.get_size()
         tela.fill(BG)
 
@@ -343,8 +327,7 @@ class MesaRemotaPifPafScreen:
                             tamanho=20, cor=INK, centralizado=True, negrito=True)
             return
 
-        mesa_rect = pygame.Rect(0, 0, int(largura * 0.7), int(altura * 0.48))
-        mesa_rect.center = (largura // 2, int(altura * 0.36))
+        mesa_rect = mesa_rect_para(largura, altura)
         desenhar_mesa(tela, mesa_rect)
 
         self._desenhar_topo(tela, largura)
@@ -373,8 +356,8 @@ class MesaRemotaPifPafScreen:
         desenhar_badge(tela, largura // 2, 30, f"MAO #{self.estado['mao_numero']}",
                         PANEL, cor_texto=INK, tamanho_fonte=13, familia="mono", borda=INK)
         meu = self._meu_jogador()
-        stack = meu["stack"] if meu else 0
-        desenhar_badge(tela, largura - 24, 30, f"VOCE: {stack}",
+        vitorias = meu["vitorias"] if meu else 0
+        desenhar_badge(tela, largura - 24, 30, f"VOCE: {vitorias}/{VITORIAS_PARA_VENCER} VITORIAS",
                         YELLOW, cor_texto=SOMBRA, tamanho_fonte=13, familia="mono",
                         ancorar="midright", borda=INK)
 
@@ -385,8 +368,8 @@ class MesaRemotaPifPafScreen:
                         tamanho_fonte=14, cor=PANEL)
 
     def _desenhar_centro_mesa(self, tela, mesa_rect):
-        largura_carta, altura_carta = CARTA_MONTE_TAMANHO
-        espaco = 40
+        largura_carta, altura_carta = layout.obter("pifpaf.carta_monte")
+        espaco = layout.obter("pifpaf.espaco_monte")
         cx, cy = mesa_rect.centerx, mesa_rect.centery
 
         self.monte_rect = pygame.Rect(0, 0, largura_carta, altura_carta)
@@ -405,19 +388,10 @@ class MesaRemotaPifPafScreen:
         desenhar_badge(tela, self.descarte_rect.centerx, self.descarte_rect.bottom + 18,
                         "DESCARTE", PANEL, cor_texto=INK, tamanho_fonte=10, borda=INK)
 
-        if self.estado.get("vira"):
-            vira = Card(*self.estado["vira"])
-            if self.estado.get("usar_joker"):
-                texto_vira = f"VIRA {_carta_str(vira)} (decorativa) — JOKERS SÃO CORINGA"
-            else:
-                texto_vira = f"VIRA {_carta_str(vira)}  →  CORINGA VALE {self.estado['coringa_valor']}"
-            desenhar_badge(tela, cx, mesa_rect.top + 30, texto_vira,
-                            YELLOW, cor_texto=SOMBRA, tamanho_fonte=11, familia="mono", borda=INK)
-
     def _desenhar_jogadores(self, tela, mesa_rect):
         jogadores = self.estado["jogadores"]
         n = len(jogadores)
-        posicoes = _posicoes_assentos(mesa_rect, n)
+        posicoes = posicoes_assentos(mesa_rect, n)
         jogador_da_vez_id = self.estado.get("jogador_da_vez_id")
 
         for indice, (x, y) in enumerate(posicoes):
@@ -425,28 +399,24 @@ class MesaRemotaPifPafScreen:
             eh_eu = jogador["id"] == self.meu_id
             eh_vez_dele = jogador_da_vez_id == jogador["id"]
 
-            painel = pygame.Rect(0, 0, 178, 62)
+            painel = pygame.Rect(0, 0, LARGURA_PAINEL_ASSENTO, ALTURA_PAINEL_ASSENTO)
             painel.centerx = x
             painel.centery = y
 
             if eh_vez_dele:
-                desenhar_glow_de_vez(tela, x, y, CARTA_BOT_TAMANHO[0], CARTA_BOT_TAMANHO[1], self.tempo_decorrido)
+                desenhar_glow_de_vez(tela, x, y, *layout.obter("pifpaf.carta_oponente"), self.tempo_decorrido)
 
-            fundo = LOCKED if jogador["eliminado"] else PANEL
-            desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
+            desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
             cor_avatar = YELLOW if eh_eu else PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
             desenhar_avatar(tela, painel.x + 34, painel.centery, 22, cor_avatar, _iniciais(jogador["nome"]))
 
-            cor_nome = TEXT_MUTED if jogador["eliminado"] else INK
             desenhar_texto(tela, jogador["nome"], painel.x + 62, painel.y + 12, tamanho=13,
-                            cor=cor_nome, negrito=True)
-            desenhar_texto(tela, str(jogador["stack"]), painel.x + 62, painel.y + 30, tamanho=12,
+                            cor=INK, negrito=True)
+            desenhar_texto(tela, f"{jogador['vitorias']} vit.", painel.x + 62, painel.y + 30, tamanho=12,
                             cor=TEXT_MUTED, familia="mono")
 
-            if jogador["eliminado"]:
-                status = "Eliminado"
-            elif jogador.get("desconectado"):
+            if jogador.get("desconectado"):
                 status = "Desconectado"
             elif eh_eu:
                 status = None
@@ -459,13 +429,11 @@ class MesaRemotaPifPafScreen:
 
             if status:
                 desenhar_badge(tela, painel.x + 62, painel.y + 48, status,
-                                MINT if not jogador["eliminado"] else LOCKED,
-                                cor_texto=(SOMBRA if not jogador["eliminado"] else INK),
-                                tamanho_fonte=9, ancorar="midleft")
+                                MINT, cor_texto=SOMBRA, tamanho_fonte=9, ancorar="midleft")
 
     def _desenhar_bandeja_mao(self, tela, largura, altura):
         meu = self._meu_jogador()
-        if meu is None or meu["eliminado"]:
+        if meu is None:
             return
 
         pares = self._rects_mao()
@@ -490,8 +458,9 @@ class MesaRemotaPifPafScreen:
         ultima = self.estado.get("ultima_acao") if self.estado else None
         if not ultima:
             return
-        desenhar_badge(tela, largura - 24, 64, ultima[:44], PANEL, cor_texto=INK,
-                        tamanho_fonte=11, ancorar="topright", borda=INK)
+        texto = ultima[:44]
+        x, y = posicao_selo_historico(texto, largura, altura, len(self.estado["jogadores"]))
+        desenhar_badge(tela, x, y, texto, PANEL, cor_texto=INK, tamanho_fonte=11, ancorar="topright", borda=INK)
 
     def _desenhar_resultado(self, tela, largura, altura):
         resultado = self.estado["resultado"]
@@ -504,19 +473,19 @@ class MesaRemotaPifPafScreen:
                         tamanho=17, cor=INK, centralizado=True, negrito=True, familia="display")
 
         if resultado.get("empate"):
-            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem paga.",
+            desenhar_texto(tela, "Ninguem bateu a tempo - mao empatada, ninguem pontua.",
                             painel.centerx, painel.y + 52, tamanho=14, cor=INK, centralizado=True, negrito=True)
         else:
             if resultado.get("mao_fechada"):
-                texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou {resultado['pote']} fichas (dobrado)!"
+                texto_vitoria = f"{resultado['vencedor']} bateu de MÃO FECHADA e ganhou 2 vitórias!"
             else:
-                texto_vitoria = f"{resultado['vencedor']} bateu e ganhou {resultado['pote']} fichas!"
+                texto_vitoria = f"{resultado['vencedor']} bateu e ganhou a mão!"
             desenhar_texto(tela, texto_vitoria, painel.centerx, painel.y + 52,
                             tamanho=14, cor=INK, centralizado=True, negrito=True)
 
             y = painel.y + 82
             for d in resultado["detalhes"]:
-                desenhar_texto(tela, f"{d['jogador']} pagou {d['pontos']} pontos em cartas soltas",
+                desenhar_texto(tela, f"{d['jogador']} ficou com {d['pontos']} pontos em cartas soltas",
                                 painel.centerx, y, tamanho=13, cor=TEXT_MUTED, centralizado=True)
                 y += 26
 
@@ -525,7 +494,7 @@ class MesaRemotaPifPafScreen:
 
     def _desenhar_mensagem_final(self, tela, largura, altura):
         overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        overlay.fill((*INK, 150))
+        overlay.fill((*INK[:3], 150))
         tela.blit(overlay, (0, 0))
 
         painel = pygame.Rect(0, 0, 440, 200)
@@ -565,7 +534,7 @@ class MesaRemotaPifPafScreen:
         comprou = self.estado.get("comprou_nesta_vez", False)
         if not comprou:
             pode_mao_fechada = self._pode_bater_mao_fechada()
-            espaco = 20
+            espaco = layout.obter("pifpaf.espaco_botoes")
 
             if pode_mao_fechada:
                 largura_total = (self.botao_mao_fechada.width + self.botao_monte.width
@@ -584,8 +553,8 @@ class MesaRemotaPifPafScreen:
                 desenhar_kbd(tela, self.botao_mao_fechada.right - 14, self.botao_mao_fechada.bottom - 14,
                               "B", ancorar="bottomright")
             else:
-                self.botao_monte.midleft = (largura // 2 - 240, base_y)
-                self.botao_descarte.midleft = (largura // 2 + 10, base_y)
+                self.botao_monte.midright = (largura // 2 - espaco // 2, base_y)
+                self.botao_descarte.midleft = (largura // 2 + espaco // 2, base_y)
 
             desenhar_botao(tela, self.botao_monte, "Comprar Monte",
                             hover=self.botao_monte.collidepoint(mouse_pos), tamanho_fonte=16, cor=BLUE, cor_texto=INK)
@@ -597,7 +566,7 @@ class MesaRemotaPifPafScreen:
             return
 
         pode_bater = self._pode_bater()
-        self.botao_bater.midleft = (largura // 2 - 165, base_y)
+        self.botao_bater.midright = (largura // 2 - 15, base_y)
         desenhar_botao(tela, self.botao_bater, "Bater", ativo=pode_bater,
                         hover=pode_bater and self.botao_bater.collidepoint(mouse_pos),
                         tamanho_fonte=18, cor=YELLOW)

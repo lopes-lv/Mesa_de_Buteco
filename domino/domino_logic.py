@@ -11,7 +11,7 @@ Contém:
  - DominoTable: orquestra uma mão completa (distribuir -> turnos -> bateu
    ou travamento -> pontuação) e a corrida até 250 pontos entre mãos
 
-Regras (ver GDD.md/MELHORIAS.md para a decisão de escopo): sem duplas, cada
+Regras (ver domino/README.md para a decisão de escopo): sem duplas, cada
 jogador por si, só 3 ou 4 jogadores por mesa (28 peças não dividem por 2, e
 sem monte não sobra lugar pra peça nenhuma - por isso com 3 jogadores a
 peça 0/0 é retirada do jogo pra fechar 27 = 9x3). Não existe compra: cada

@@ -13,6 +13,7 @@ import pygame
 
 from .deck import NAIPE_CORINGA
 from . import baralhos_skins
+from . import layout
 
 # ---------- Paleta ----------
 # Papéis fixos (não trocam de lado claro/escuro):
@@ -21,22 +22,35 @@ from . import baralhos_skins
 #   SOMBRA          = cor fixa da sombra sólida deslocada (sempre escura)
 #   CARTA_FACE/CARTA_INK = a carta é "papel": sempre clara, com tinta escura,
 #                     mesmo com o resto da UI em modo escuro.
-BG = (26, 28, 44)
-PANEL = (51, 60, 87)
-FELT = (37, 113, 121)
-FELT_DARK = (26, 77, 85)
-INK = (244, 244, 244)
-TEXT_MUTED = (158, 178, 199)
-YELLOW = (230, 169, 46)
-CORAL = (196, 64, 86)
-BLUE = (59, 93, 201)
-MINT = (56, 170, 108)
-PURPLE = (90, 70, 200)
-LOCKED = (70, 78, 102)
-RED_SUIT = (190, 40, 58)
-SOMBRA = (12, 13, 23)
-CARTA_FACE = (244, 244, 244)
-CARTA_INK = (26, 28, 44)
+# Os valores ficam em config/layout_padrao.json (grupo "cores"), editáveis
+# pelo editor visual. Cada cor é um pygame.Color (mutável) e não uma tupla: as
+# telas fazem `from core.ui_theme import YELLOW`, então guardam uma referência
+# ao MESMO objeto - aplicar_tema() muda a cor no lugar e todo mundo enxerga.
+# Por isso, ao juntar alfa, use `(*COR[:3], alfa)` (um Color já tem 4 canais).
+BG = pygame.Color(0, 0, 0)
+PANEL = pygame.Color(0, 0, 0)
+FELT = pygame.Color(0, 0, 0)
+FELT_DARK = pygame.Color(0, 0, 0)
+INK = pygame.Color(0, 0, 0)
+TEXT_MUTED = pygame.Color(0, 0, 0)
+YELLOW = pygame.Color(0, 0, 0)
+CORAL = pygame.Color(0, 0, 0)
+BLUE = pygame.Color(0, 0, 0)
+MINT = pygame.Color(0, 0, 0)
+PURPLE = pygame.Color(0, 0, 0)
+LOCKED = pygame.Color(0, 0, 0)
+RED_SUIT = pygame.Color(0, 0, 0)
+SOMBRA = pygame.Color(0, 0, 0)
+CARTA_FACE = pygame.Color(0, 0, 0)
+CARTA_INK = pygame.Color(0, 0, 0)
+
+# chave em "cores.*" -> objeto de cor (preenchido por aplicar_tema(), logo abaixo)
+_PALETA = {
+    "fundo": BG, "painel": PANEL, "feltro": FELT, "feltro_escuro": FELT_DARK,
+    "tinta": INK, "texto_apagado": TEXT_MUTED, "amarelo": YELLOW, "coral": CORAL,
+    "azul": BLUE, "verde": MINT, "roxo": PURPLE, "bloqueado": LOCKED,
+    "naipe_vermelho": RED_SUIT, "sombra": SOMBRA, "carta_face": CARTA_FACE, "carta_tinta": CARTA_INK,
+}
 
 # Compatibilidade com nomes antigos usados em outros módulos.
 COR_FUNDO = BG
@@ -48,11 +62,46 @@ CROUPIER_PELE = (235, 195, 155)
 CROUPIER_COLETE = (38, 40, 54)
 CROUPIER_CABELO = (74, 52, 38)
 
-# Cores de fundo das quais um botão/badge PRECISA de texto escuro (SOMBRA)
-# por cima para continuar legível - são os dois acentos "claros" da paleta;
-# os demais (CORAL/BLUE/PURPLE/PANEL/LOCKED) são escuros o bastante pra
-# aceitar o INK (claro) padrão. Ver desenhar_botao().
-_FUNDOS_CLAROS = (YELLOW, MINT)
+# Espessura da borda e deslocamento da sombra de botões/painéis, e escala de
+# todas as fontes (%) - também de config/layout_padrao.json ("geral.*").
+_tema = {"borda": 4, "sombra": 6, "escala_fonte": 100}
+
+
+def aplicar_tema(obter=None):
+    """Carrega cores, borda/sombra e escala de fonte de `obter(chave)`
+    (padrão: `layout.obter`, ou seja, o layout em uso). Chamado ao importar
+    este módulo; o editor visual chama de novo pra alternar entre o tema
+    padrão (na própria interface) e o tema editado (nas prévias)."""
+    obter = obter or layout.obter
+    for chave, cor in _PALETA.items():
+        cor.update(*obter(f"cores.{chave}"))
+    for chave in _tema:
+        _tema[chave] = obter(f"geral.{chave}")
+
+
+aplicar_tema()
+
+
+def luminancia(cor):
+    """Luminância relativa (WCAG 2) de uma cor RGB, de 0 (preto) a 1 (branco)."""
+    def canal(valor):
+        valor /= 255
+        return valor / 12.92 if valor <= 0.03928 else ((valor + 0.055) / 1.055) ** 2.4
+    r, g, b = cor[:3]
+    return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
+
+
+def contraste(cor_a, cor_b):
+    """Razão de contraste WCAG entre duas cores (1 a 21; texto pede >= 4.5)."""
+    claro, escuro = sorted((luminancia(cor_a), luminancia(cor_b)), reverse=True)
+    return (claro + 0.05) / (escuro + 0.05)
+
+
+def cor_texto_sobre(fundo):
+    """Texto escuro (SOMBRA) ou claro (INK), o que tiver mais contraste com
+    `fundo`. Com a paleta padrão dá texto escuro só no amarelo e no verde (era
+    uma lista fixa antes de as cores ficarem editáveis)."""
+    return SOMBRA if contraste(fundo, SOMBRA) > contraste(fundo, INK) else INK
 
 # ---------- Fontes ----------
 # Sem arquivos .ttf baixados: usamos uma fonte monoespaçada de sistema (bem
@@ -69,6 +118,8 @@ _fonte_cache = {}
 
 
 def obter_fonte(tamanho, negrito=False, familia="body"):
+    """Fonte do tamanho pedido, já aplicada a escala "geral.escala_fonte"."""
+    tamanho = max(6, round(tamanho * _tema["escala_fonte"] / 100))
     chave = (tamanho, negrito, familia)
     if chave not in _fonte_cache:
         candidatos = FAMILIAS.get(familia, FAMILIAS["body"])
@@ -106,35 +157,44 @@ def retangulo_borda(tela, rect, cor_fundo, cor_borda=INK, largura_borda=4, radiu
 
 
 def desenhar_painel(tela, rect, cor=PANEL, cor_borda=INK, radius=0, sombra=True,
-                     largura_borda=4, deslocamento_sombra=(6, 6)):
+                     largura_borda=None, deslocamento_sombra=None):
     """Painel pixel art: preenchimento + borda grossa + sombra sólida deslocada,
-    sem arredondamento de cantos."""
+    sem arredondamento de cantos. Sem `largura_borda`/`deslocamento_sombra`
+    explícitos, usa "geral.borda"/"geral.sombra" do layout."""
+    if largura_borda is None:
+        largura_borda = _tema["borda"]
+    if deslocamento_sombra is None:
+        deslocamento_sombra = (_tema["sombra"], _tema["sombra"])
     if sombra:
         pygame.draw.rect(tela, SOMBRA, rect.move(*deslocamento_sombra), border_radius=radius)
     retangulo_borda(tela, rect, cor, cor_borda, largura_borda, radius)
 
 
 def desenhar_botao(tela, rect, texto, hover=False, ativo=True, tamanho_fonte=18,
-                    cor=YELLOW, cor_texto=None, radius=0, largura_borda=4):
+                    cor=YELLOW, cor_texto=None, radius=0, largura_borda=None):
     """Botão pixel art. Ao passar o mouse, 'levanta' (sombra maior, corpo
     deslocado); a área de clique (rect original) não muda de tamanho/posição.
-    `cor_texto=None` (padrão) escolhe automaticamente: texto escuro sobre os
-    acentos claros (amarelo/verde), texto claro sobre o resto - só é preciso
-    informar `cor_texto` explicitamente pra fugir dessa regra."""
+    `cor_texto=None` (padrão) escolhe automaticamente o texto de maior
+    contraste com o fundo (cor_texto_sobre) - só é preciso informar
+    `cor_texto` explicitamente pra fugir dessa regra. Borda e sombra seguem
+    "geral.borda"/"geral.sombra" (sombra +2 no hover, metade se desativado)."""
+    if largura_borda is None:
+        largura_borda = _tema["borda"]
+    sombra = _tema["sombra"]
     if not ativo:
         desenho_rect = rect
-        sombra_offset = (3, 3)
+        sombra_offset = (sombra // 2, sombra // 2)
         fundo = LOCKED
         cor_txt = TEXT_MUTED
     else:
         if hover:
             desenho_rect = rect.move(-2, -2)
-            sombra_offset = (8, 8)
+            sombra_offset = (sombra + 2, sombra + 2)
         else:
             desenho_rect = rect
-            sombra_offset = (6, 6)
+            sombra_offset = (sombra, sombra)
         fundo = cor
-        cor_txt = cor_texto if cor_texto is not None else (SOMBRA if cor in _FUNDOS_CLAROS else INK)
+        cor_txt = cor_texto if cor_texto is not None else cor_texto_sobre(cor)
 
     pygame.draw.rect(tela, SOMBRA, desenho_rect.move(*sombra_offset), border_radius=radius)
     retangulo_borda(tela, desenho_rect, fundo, INK, largura_borda, radius)
@@ -158,14 +218,22 @@ def desenhar_kbd(tela, x, y, texto, ancorar="center"):
     return rect
 
 
+def tamanho_badge(texto, tamanho_fonte=12, familia="body"):
+    """(largura, altura) que desenhar_badge() vai ocupar - pra posicionar um
+    selo antes de desenhá-lo."""
+    # mede a superfície renderizada (como o selo é desenhado), não Font.size(),
+    # que pode diferir em 1px
+    largura, altura = obter_fonte(tamanho_fonte, True, familia).render(texto, True, (0, 0, 0)).get_size()
+    return largura + 2 * 10, altura + 2 * 5
+
+
 def desenhar_badge(tela, x, y, texto, cor_fundo, cor_texto=INK, tamanho_fonte=12,
                     ancorar="center", borda=None, familia="body"):
     """Pill genérico virou tag retangular (status de bot, marcador SB/BB,
     tags 'ATIVO'/'EM BREVE', pote, etc.) - cantos retos, borda opcional."""
     fonte = obter_fonte(tamanho_fonte, True, familia)
     superficie = fonte.render(texto, True, cor_texto)
-    pad_x, pad_y = 10, 5
-    rect = pygame.Rect(0, 0, superficie.get_width() + pad_x * 2, superficie.get_height() + pad_y * 2)
+    rect = pygame.Rect((0, 0), tamanho_badge(texto, tamanho_fonte, familia))
     setattr(rect, ancorar, (x, y))
     pygame.draw.rect(tela, cor_fundo, rect)
     if borda:
@@ -413,7 +481,7 @@ def desenhar_glow_de_vez(tela, x, y, largura_carta, altura_carta, tempo):
     raio_y = altura_carta // 2 + 34 + int(pulso * 6)
     alpha = 120 + int(pulso * 100)
     superficie = pygame.Surface((raio_x * 2, raio_y * 2), pygame.SRCALPHA)
-    pygame.draw.ellipse(superficie, (*MINT, alpha), (0, 0, raio_x * 2, raio_y * 2), width=5)
+    pygame.draw.ellipse(superficie, (*MINT[:3], alpha), (0, 0, raio_x * 2, raio_y * 2), width=5)
     tela.blit(superficie, (x - raio_x, y - raio_y))
 
 

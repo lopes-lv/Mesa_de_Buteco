@@ -4,13 +4,16 @@ sessão (não persistidas em disco). Acessadas via `app.settings` a partir de
 qualquer tela.
 """
 from .baralhos_skins import ORDEM_SKINS as _ORDEM_SKINS_NOVAS, ROTULOS_SKINS as _ROTULOS_SKINS_NOVOS
+from . import layout
 
-VELOCIDADES_BOT = {"lenta": 1.6, "normal": 0.9, "rapida": 0.35}
+# Tempo (s) de cada velocidade de bot no Hold'em: vem de "geral.delay_bot_*_ms"
+# em config/layout_padrao.json (editável pelo editor visual).
 ORDEM_VELOCIDADES = ["lenta", "normal", "rapida"]
 ROTULOS_VELOCIDADE = {"lenta": "Lenta", "normal": "Normal", "rapida": "Rápida"}
 
+# Faixa do seletor de fichas na Configuração; o valor inicial vem de
+# "geral.fichas_iniciais".
 FICHAS_MIN, FICHAS_MAX, FICHAS_PASSO = 500, 5000, 500
-FICHAS_PADRAO = 1500
 
 ORDEM_BARALHO_SKINS = ["padrao", "dark"] + _ORDEM_SKINS_NOVAS
 ROTULOS_BARALHO_SKIN = {"padrao": "Padrão", "dark": "Dark", **_ROTULOS_SKINS_NOVOS}
@@ -22,14 +25,14 @@ class Settings:
     def __init__(self):
         self.tela_cheia = False
         self.velocidade_bots = "normal"
-        self.fichas_iniciais = FICHAS_PADRAO
+        self.fichas_iniciais = layout.obter("geral.fichas_iniciais")
         self.mostrar_atalhos = True
         self.usar_joker_pifpaf = False
         self.baralho_skin = "padrao"
         self.selecao_automatica_pecas = False
 
     def delay_bot(self):
-        return VELOCIDADES_BOT[self.velocidade_bots]
+        return layout.obter(f"geral.delay_bot_{self.velocidade_bots}_ms") / 1000
 
     def ciclar_velocidade_bots(self):
         indice = ORDEM_VELOCIDADES.index(self.velocidade_bots)

@@ -1,0 +1,67 @@
+{
+  "_sobre": "Valores padrão de layout das telas de mesa (lidos por core/layout.py). Ajustes do usuário vão em config/layout.json, só com os itens alterados, ex.: {\"holdem\": {\"carta_jogador\": [120, 168]}}. Tamanhos são [largura, altura] em pixels; min/max/passo/rotulo servem para validação e para o editor visual. Atenção nas cartas (baralhos Padrão/Dark, ui_theme.desenhar_carta): a espessura da borda/sombra muda por faixa de largura - até 50px borda 3, até 80px borda 4, acima disso borda 5 com sombra maior - então cruzar 50 ou 80px dá um 'salto' visual além do tamanho.",
+  "geral": {
+    "botao_sair": {"valor": [110, 44], "min": [60, 30], "max": [240, 90], "passo": 2, "rotulo": "Botão Sair"},
+    "botao_continuar": {"valor": [240, 56], "min": [120, 32], "max": [480, 110], "passo": 2, "rotulo": "Botão Continuar/Próxima mão"},
+    "escala_fonte": {"valor": 100, "min": 70, "max": 150, "passo": 5, "rotulo": "Tamanho de todos os textos (%)"},
+    "borda": {"valor": 4, "min": 1, "max": 10, "passo": 1, "rotulo": "Espessura da borda de botões e painéis"},
+    "sombra": {"valor": 6, "min": 0, "max": 16, "passo": 1, "rotulo": "Deslocamento da sombra de botões e painéis"},
+    "fichas_iniciais": {"valor": 1500, "min": 500, "max": 5000, "passo": 500, "rotulo": "Fichas iniciais padrão (bots do Hold'em)"},
+    "delay_bot_lenta_ms": {"valor": 1600, "min": 200, "max": 5000, "passo": 100, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Lenta (ms)"},
+    "delay_bot_normal_ms": {"valor": 900, "min": 100, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Normal (ms)"},
+    "delay_bot_rapida_ms": {"valor": 350, "min": 50, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Hold'em - velocidade Rápida (ms)"}
+  },
+  "cores": {
+    "fundo": {"valor": [26, 28, 44], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Fundo da tela (BG)"},
+    "painel": {"valor": [51, 60, 87], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Painéis (PANEL)"},
+    "feltro": {"valor": [37, 113, 121], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Feltro da mesa (FELT)"},
+    "feltro_escuro": {"valor": [26, 77, 85], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Borda interna do feltro (FELT_DARK)"},
+    "tinta": {"valor": [244, 244, 244], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Texto e bordas (INK)"},
+    "texto_apagado": {"valor": [158, 178, 199], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Texto secundário (TEXT_MUTED)"},
+    "amarelo": {"valor": [230, 169, 46], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Destaque amarelo (YELLOW)"},
+    "coral": {"valor": [196, 64, 86], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Destaque vermelho (CORAL)"},
+    "azul": {"valor": [59, 93, 201], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Destaque azul / verso das cartas (BLUE)"},
+    "verde": {"valor": [56, 170, 108], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Destaque verde / anel de vez (MINT)"},
+    "roxo": {"valor": [90, 70, 200], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Destaque roxo (PURPLE)"},
+    "bloqueado": {"valor": [70, 78, 102], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Botão desativado / eliminado (LOCKED)"},
+    "naipe_vermelho": {"valor": [190, 40, 58], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Naipes vermelhos das cartas (RED_SUIT)"},
+    "sombra": {"valor": [12, 13, 23], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Sombra e texto escuro (SOMBRA)"},
+    "carta_face": {"valor": [244, 244, 244], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Face da carta e da peça (CARTA_FACE)"},
+    "carta_tinta": {"valor": [26, 28, 44], "min": [0, 0, 0], "max": [255, 255, 255], "passo": 5, "rotulo": "Tinta da carta e da peça (CARTA_INK)"}
+  },
+  "holdem": {
+    "carta_jogador": {"valor": [100, 140], "min": [40, 56], "max": [200, 280], "passo": 2, "rotulo": "Sua carta"},
+    "carta_oponente": {"valor": [46, 64], "min": [24, 34], "max": [120, 168], "passo": 2, "rotulo": "Carta dos oponentes"},
+    "carta_comunitaria": {"valor": [64, 90], "min": [32, 44], "max": [140, 196], "passo": 2, "rotulo": "Cartas comunitárias"},
+    "deslocamento_cartas_jogador": {"valor": 40, "min": 0, "max": 200, "passo": 2, "rotulo": "Elevação das suas cartas acima do assento"},
+    "espaco_cartas_jogador": {"valor": 8, "min": 0, "max": 60, "passo": 1, "rotulo": "Espaço entre as suas cartas"},
+    "espaco_cartas_oponente": {"valor": 4, "min": 0, "max": 40, "passo": 1, "rotulo": "Espaço entre as cartas dos oponentes"},
+    "espaco_comunitarias": {"valor": 12, "min": 0, "max": 60, "passo": 1, "rotulo": "Espaço entre as comunitárias"},
+    "botao_acao": {"valor": [172, 68], "min": [90, 36], "max": [320, 130], "passo": 2, "rotulo": "Botões Fold/Call/Raise"},
+    "espaco_botoes": {"valor": 20, "min": 0, "max": 80, "passo": 2, "rotulo": "Espaço entre Fold/Call/Raise"},
+    "botao_confirmar_raise": {"valor": [180, 48], "min": [90, 30], "max": [320, 100], "passo": 2, "rotulo": "Botão Confirmar raise"},
+    "botao_cancelar_raise": {"valor": [130, 48], "min": [70, 30], "max": [260, 100], "passo": 2, "rotulo": "Botão Cancelar raise"}
+  },
+  "pifpaf": {
+    "carta_mao": {"valor": [66, 92], "min": [32, 44], "max": [140, 196], "passo": 2, "rotulo": "Cartas da sua mão"},
+    "carta_monte": {"valor": [60, 84], "min": [30, 42], "max": [140, 196], "passo": 2, "rotulo": "Monte e descarte"},
+    "carta_oponente": {"valor": [46, 64], "min": [24, 34], "max": [120, 168], "passo": 2, "rotulo": "Destaque de vez dos oponentes"},
+    "espaco_mao": {"valor": 10, "min": 0, "max": 40, "passo": 1, "rotulo": "Espaço entre as cartas da mão"},
+    "espaco_monte": {"valor": 40, "min": 0, "max": 160, "passo": 2, "rotulo": "Distância monte/descarte ao centro"},
+    "espaco_botoes": {"valor": 20, "min": 0, "max": 80, "passo": 2, "rotulo": "Espaço entre os botões de ação"},
+    "botao_compra": {"valor": [230, 56], "min": [120, 32], "max": [400, 110], "passo": 2, "rotulo": "Botões Comprar do monte/descarte"},
+    "botao_mao_fechada": {"valor": [190, 56], "min": [100, 32], "max": [360, 110], "passo": 2, "rotulo": "Botão Mão Fechada"},
+    "delay_bot_ms": {"valor": 900, "min": 100, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Pif Paf (ms)"},
+    "botao_jogada": {"valor": [230, 56], "min": [80, 32], "max": [300, 110], "passo": 2, "rotulo": "Botões Bater/Descartar (abaixo de 220px o texto DESCARTAR fica sob o selo ENTER)"}
+  },
+  "domino": {
+    "peca_mao": {"valor": [46, 92], "min": [22, 44], "max": [100, 200], "passo": 2, "rotulo": "Peças da sua mão"},
+    "peca_mesa": {"valor": [72, 36], "min": [36, 18], "max": [160, 80], "passo": 2, "rotulo": "Peça na mesa (comprimento, espessura) - tamanho máximo, a mesa reduz sozinha para caber"},
+    "peca_pilha_escolha": {"valor": [40, 80], "min": [20, 40], "max": [90, 180], "passo": 2, "rotulo": "Peças da pilha de escolha (início da mão)"},
+    "espaco_mao": {"valor": 8, "min": 0, "max": 40, "passo": 1, "rotulo": "Espaço entre as peças da mão"},
+    "espaco_mesa": {"valor": 4, "min": 0, "max": 20, "passo": 1, "rotulo": "Espaço entre as peças na mesa"},
+    "espaco_pilha_escolha": {"valor": 10, "min": 0, "max": 40, "passo": 1, "rotulo": "Espaço entre as peças da pilha de escolha"},
+    "delay_bot_ms": {"valor": 700, "min": 100, "max": 5000, "passo": 50, "rotulo": "Tempo de jogada dos bots no Dominó (ms)"},
+    "botao_passar": {"valor": [160, 52], "min": [80, 30], "max": [300, 100], "passo": 2, "rotulo": "Botão Passar"}
+  }
+}

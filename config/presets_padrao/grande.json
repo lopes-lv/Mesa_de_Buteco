@@ -1,0 +1,30 @@
+{
+  "_sobre": "Cartas, peças, botões e textos maiores - para telas de 1600x900 ou mais e jogar de longe. Em janelas menores os elementos se sobrepõem (veja na MESA COMPLETA).",
+  "geral": {
+    "botao_sair": [130, 52],
+    "botao_continuar": [280, 64],
+    "escala_fonte": 120
+  },
+  "holdem": {
+    "carta_jogador": [130, 182],
+    "carta_oponente": [56, 78],
+    "carta_comunitaria": [80, 112],
+    "botao_acao": [200, 76],
+    "botao_confirmar_raise": [200, 54],
+    "botao_cancelar_raise": [150, 54]
+  },
+  "pifpaf": {
+    "carta_mao": [80, 112],
+    "carta_monte": [74, 104],
+    "carta_oponente": [56, 78],
+    "botao_compra": [270, 64],
+    "botao_mao_fechada": [230, 64],
+    "botao_jogada": [270, 64]
+  },
+  "domino": {
+    "peca_mao": [56, 112],
+    "peca_mesa": [88, 44],
+    "peca_pilha_escolha": [48, 96],
+    "botao_passar": [190, 60]
+  }
+}

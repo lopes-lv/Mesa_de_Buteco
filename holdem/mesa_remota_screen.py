@@ -19,12 +19,11 @@ from core.ui_theme import (
     desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie, desenhar_mesa_oval_recorte,
 )
 from core.chat_widget import ChatWidget
+from core import layout
 from rede import protocolo
 
-CARTA_OUTRO = (46, 64)
-CARTA_COMUNITARIA = (64, 90)
-CARTA_PROPRIA = (100, 140)
-DESLOCAMENTO_CARTAS_PROPRIAS = 40
+# Tamanhos de carta, espaçamentos e botões: mesmas chaves "holdem.*"/"geral.*"
+# de core/layout.py que table_screen.py usa.
 
 ANIM_CROUPIER_DURACAO = 0.9
 
@@ -33,6 +32,35 @@ PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
 HIST_MAX_LINHAS = 7
 HIST_LARGURA = 300
 HIST_MARGEM = 24
+
+# Metade do painel de um bot (178px) + o selo SB/BB que passa da borda direita
+# dele + folga: o centro de um assento nunca fica mais perto da borda da tela
+# que isso (em janelas estreitas os assentos laterais saíam da tela).
+MEIA_LARGURA_ASSENTO = 112
+# Vão entre o painel de um bot e as cartas dele, embaixo. Era 14: com 8
+# jogadores em 768px de altura os 4 assentos da esquerda (painel + vão +
+# cartas = 136px cada) não cabiam empilhados sem um invadir o outro.
+VAO_PAINEL_CARTAS_BOT = 10
+
+
+def _desenhar_selo_aposta(tela, texto, x, y_cartas, largura_total, eh_voce, centro_mesa_x):
+    """Selo com a aposta da rodada, ao lado das cartas: o seu à direita delas
+    (o painel "Você" fica à esquerda), o dos bots virado pro centro da mesa.
+    Ficava embaixo das cartas - o seu, atrás dos botões Fold/Call/Raise; o dos
+    bots, com 7-8 jogadores ou em janelas baixas, sobre o painel do vizinho,
+    o painel "Você" ou o histórico (o painel do bot já diz "Apostou N")."""
+    if eh_voce or x <= centro_mesa_x:
+        desenhar_badge(tela, x + largura_total // 2 + 8, y_cartas, texto, PANEL, cor_texto=INK,
+                       tamanho_fonte=11, familia="mono", borda=INK, ancorar="midleft")
+    else:
+        desenhar_badge(tela, x - largura_total // 2 - 8, y_cartas, texto, PANEL, cor_texto=INK,
+                       tamanho_fonte=11, familia="mono", borda=INK, ancorar="midright")
+
+
+def _limite_direito_controles(largura):
+    """Até onde (x) os controles do rodapé (Fold/Call/Raise e o painel do
+    raise) podem ir sem encostar no histórico, fixo no canto inferior direito."""
+    return largura - HIST_MARGEM - HIST_LARGURA - 20
 
 
 def _posicoes_assentos(mesa_rect, n_jogadores):
@@ -49,9 +77,9 @@ def _posicoes_assentos(mesa_rect, n_jogadores):
     elif n_jogadores == 6:
         angulos = [90, 135, 180, 225, 315, 0]
     elif n_jogadores == 7:
-        angulos = [90, 135, 180, 225, 315, 0, 45]
+        angulos = [90, 135, 180, 225, 315, 0, 35]
     else:
-        angulos = [90, 125, 160, 195, 230, 310, 350, 30]
+        angulos = [90, 130, 165, 194, 228, 312, 348, 20]
 
     posicoes = []
     for i in range(n_jogadores):
@@ -60,6 +88,8 @@ def _posicoes_assentos(mesa_rect, n_jogadores):
         ry = mesa_rect.height // 2 + 70
         x = mesa_rect.centerx + int(rx * math.cos(ang))
         y = mesa_rect.centery + int(ry * math.sin(ang))
+        largura_tela = mesa_rect.centerx * 2  # a mesa é centrada na janela
+        x = max(MEIA_LARGURA_ASSENTO, min(largura_tela - MEIA_LARGURA_ASSENTO, x))
         posicoes.append((x, y))
     return posicoes
 
@@ -97,14 +127,15 @@ class MesaRemotaScreen:
         self.valor_raise_atual = 0
         self.arrastando_slider = False
 
-        self.botao_fold = pygame.Rect(0, 0, 172, 68)
-        self.botao_call = pygame.Rect(0, 0, 172, 68)
-        self.botao_raise = pygame.Rect(0, 0, 172, 68)
-        self.botao_confirmar_raise = pygame.Rect(0, 0, 180, 48)
-        self.botao_cancelar_raise = pygame.Rect(0, 0, 130, 48)
+        self.botao_fold = pygame.Rect(0, 0, 0, 0)
+        self.botao_call = pygame.Rect(0, 0, 0, 0)
+        self.botao_raise = pygame.Rect(0, 0, 0, 0)
+        self.botao_confirmar_raise = pygame.Rect(0, 0, 0, 0)
+        self.botao_cancelar_raise = pygame.Rect(0, 0, 0, 0)
         self.slider_rect = pygame.Rect(0, 0, 320, 14)
         self.slider_alca = pygame.Rect(0, 0, 22, 32)
-        self.botao_sair = pygame.Rect(0, 0, 110, 44)
+        self.botao_sair = pygame.Rect(0, 0, 0, 0)
+        self._dimensionar_botoes()
 
     # ---------------------------------------------------------------- Estado
     def _meu_jogador(self):
@@ -251,7 +282,17 @@ class MesaRemotaScreen:
         self.valor_raise_atual = max(min_raise, valor_bruto)
 
     # ---------------------------------------------------------------- Desenho
+    def _dimensionar_botoes(self):
+        """Tamanhos dos botões vêm de core/layout.py. Reaplicado a cada
+        desenhar() pra um layout alterado (editor visual, recarregar) valer
+        sem recriar a tela - a posição é definida depois, no próprio desenho."""
+        self.botao_fold.size = self.botao_call.size = self.botao_raise.size = layout.obter("holdem.botao_acao")
+        self.botao_confirmar_raise.size = layout.obter("holdem.botao_confirmar_raise")
+        self.botao_cancelar_raise.size = layout.obter("holdem.botao_cancelar_raise")
+        self.botao_sair.size = layout.obter("geral.botao_sair")
+
     def desenhar(self, tela):
+        self._dimensionar_botoes()
         largura, altura = tela.get_size()
         tela.fill(BG)
 
@@ -310,8 +351,8 @@ class MesaRemotaScreen:
     def _desenhar_comunitarias(self, tela, mesa_rect):
         cartas = [Card(valor, naipe) for valor, naipe in self.estado["comunitarias"]]
         n = len(cartas)
-        largura_carta, altura_carta = CARTA_COMUNITARIA
-        espaco = 12
+        largura_carta, altura_carta = layout.obter("holdem.carta_comunitaria")
+        espaco = layout.obter("holdem.espaco_comunitarias")
         total_largura = 5 * largura_carta + 4 * espaco
         x0 = mesa_rect.centerx - total_largura // 2
         y0 = mesa_rect.centery - altura_carta // 2 - 22
@@ -365,15 +406,17 @@ class MesaRemotaScreen:
         for indice, (x, y) in enumerate(posicoes):
             jogador = jogadores[indice]
             eh_eu = jogador["id"] == self.meu_id
-            largura_carta, altura_carta = CARTA_PROPRIA if eh_eu else CARTA_OUTRO
+            largura_carta, altura_carta = layout.obter(
+                "holdem.carta_jogador" if eh_eu else "holdem.carta_oponente")
             eh_vez_dele = jogador_da_vez_id == jogador["id"]
 
-            y_cartas = y - DESLOCAMENTO_CARTAS_PROPRIAS if eh_eu else y
+            y_cartas = y - layout.obter("holdem.deslocamento_cartas_jogador") if eh_eu else y
 
             if eh_vez_dele:
                 desenhar_glow_de_vez(tela, x, y_cartas, largura_carta, altura_carta, self.tempo_decorrido)
 
-            espaco_cartas = 8 if eh_eu else 4
+            espaco_cartas = layout.obter(
+                "holdem.espaco_cartas_jogador" if eh_eu else "holdem.espaco_cartas_oponente")
             total_largura = 2 * largura_carta + espaco_cartas
 
             if eh_eu:
@@ -402,15 +445,15 @@ class MesaRemotaScreen:
                                     largura_carta, altura_carta, carta=None, virada_para_baixo=True)
 
             if jogador["aposta_rodada"] > 0:
-                desenhar_badge(tela, x, y_cartas + altura_carta // 2 + 20, str(jogador["aposta_rodada"]),
-                                PANEL, cor_texto=INK, tamanho_fonte=11, familia="mono", borda=INK)
+                _desenhar_selo_aposta(tela, str(jogador["aposta_rodada"]), x, y_cartas, largura_total=total_largura,
+                                      eh_voce=eh_eu, centro_mesa_x=mesa_rect.centerx)
 
     def _desenhar_painel_outro(self, tela, jogador, x, y, altura_carta, eh_vez_dele):
         cor_avatar = PALETA_AVATAR[jogador["id"] % len(PALETA_AVATAR)]
         painel_w, painel_h = 178, 62
         painel = pygame.Rect(0, 0, painel_w, painel_h)
         painel.centerx = x
-        painel.bottom = y - altura_carta // 2 - 14
+        painel.bottom = y - altura_carta // 2 - VAO_PAINEL_CARTAS_BOT
 
         fundo = LOCKED if (jogador["foldou"] or jogador["eliminado"]) else PANEL
         desenhar_painel(tela, painel, cor=fundo, radius=0, deslocamento_sombra=(3, 3))
@@ -480,7 +523,7 @@ class MesaRemotaScreen:
 
     def _desenhar_mensagem_final(self, tela, largura, altura):
         overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        overlay.fill((*INK, 150))
+        overlay.fill((*INK[:3], 150))
         tela.blit(overlay, (0, 0))
 
         painel = pygame.Rect(0, 0, 440, 200)
@@ -523,9 +566,17 @@ class MesaRemotaScreen:
             return
 
         base_y = altura - 90
-        self.botao_fold.midleft = (largura // 2 - 278, base_y)
-        self.botao_call.midleft = (largura // 2 - 86, base_y)
-        self.botao_raise.midleft = (largura // 2 + 106, base_y)
+        espaco = layout.obter("holdem.espaco_botoes")
+        largura_total = self.botao_fold.width + self.botao_call.width + self.botao_raise.width + 2 * espaco
+        self.botao_fold.midleft = (largura // 2 - largura_total // 2, base_y)
+        self.botao_call.midleft = (self.botao_fold.right + espaco, base_y)
+        self.botao_raise.midleft = (self.botao_call.right + espaco, base_y)
+        # Janela estreita: a fileira anda pra esquerda pra não invadir o histórico.
+        excesso = self.botao_raise.right - _limite_direito_controles(largura)
+        if excesso > 0:
+            deslocamento = min(excesso, self.botao_fold.x - 20)
+            for botao in (self.botao_fold, self.botao_call, self.botao_raise):
+                botao.x -= deslocamento
 
         ativo = eh_minha_vez and not self.modo_raise
         mouse_pos = pygame.mouse.get_pos()
@@ -560,6 +611,7 @@ class MesaRemotaScreen:
     def _desenhar_slider_raise(self, tela, largura, altura, meu, a_pagar):
         painel = pygame.Rect(0, 0, 420, 140)
         painel.center = (largura // 2, altura - 180)
+        painel.right = min(painel.right, _limite_direito_controles(largura))  # idem botões
         desenhar_painel(tela, painel, cor=PANEL, radius=0)
 
         maximo = max(1, meu["stack"] - a_pagar)
