@@ -3,3 +3,8 @@ __pycache__/
 build/
 dist/
 design/
+# ajustes de layout e presets pessoais (os versionados são config/layout_padrao.json
+# e config/presets_padrao/)
+config/layout.json
+config/presets/
+*.toml

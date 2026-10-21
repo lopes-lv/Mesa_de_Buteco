@@ -5,7 +5,10 @@ Janela redimensionável, sem imagens externas (tudo desenhado via pygame.draw,
 estética "Neobrutalismo Suave / Dashboard Analítico" - ver ui_theme.py).
 Execute com: python main.py
 Compile com PyInstaller (ver README.md) para gerar o .exe no Windows.
+Layout/cores vêm de config/layout.json (editor: python tools/editor_visual.py);
+F5 recarrega, e o jogo recarrega sozinho quando o arquivo muda.
 """
+import os
 import sys
 import pygame
 
@@ -24,10 +27,16 @@ from domino.domino_logic import (
 from domino.domino_screen import DominoTableScreen
 from core.settings import Settings
 from menus.multiplayer_screens import CriarSalaScreen, EntrarSalaScreen, LobbyScreen, MAX_JOGADORES_POR_JOGO
-from core import ui_theme
+from core import layout, ui_theme
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
+
+# Recarga do layout sem reiniciar: F5 força; e a cada INTERVALO_VIGIA_LAYOUT
+# segundos o jogo confere se config/layout.json mudou (ex.: o editor visual
+# salvou com o jogo aberto) e recarrega sozinho.
+INTERVALO_VIGIA_LAYOUT = 1.0
+DURACAO_AVISO_LAYOUT = 2.5
 
 NOMES_BOTS = ["Bot Ana", "Bot Bruno", "Bot Caio", "Bot Duda", "Bot Elis", "Bot Fabio", "Bot Gabi", "Bot Hugo"]
 
@@ -44,7 +53,51 @@ class App:
         self.nome_vencedor = None
         self.settings = Settings()
 
+        self._marca_layout = self._marca_arquivo_layout()
+        self._tempo_vigia_layout = 0.0
+        self._aviso_layout = None  # (texto, segundos restantes)
+
         self.tela_atual = MenuScreen(self)
+
+    # ---------------- Recarga do layout (config/layout.json) ----------------
+    @staticmethod
+    def _marca_arquivo_layout():
+        """Identifica a versão do layout.json no disco (None se não existir)."""
+        try:
+            estado = os.stat(layout.caminho_usuario())
+        except OSError:
+            return None
+        return (estado.st_mtime_ns, estado.st_size)
+
+    def recarregar_layout(self, motivo):
+        """Relê config/layout.json e aplica na hora: tamanhos e botões já são
+        lidos a cada quadro, cores/fonte/borda via ui_theme.aplicar_tema().
+        As fichas iniciais só acompanham se o jogador não mexeu nelas."""
+        fichas_antes = layout.obter("geral.fichas_iniciais")
+        layout.recarregar()
+        ui_theme.aplicar_tema()
+        if self.settings.fichas_iniciais == fichas_antes:
+            self.settings.fichas_iniciais = layout.obter("geral.fichas_iniciais")
+        self._marca_layout = self._marca_arquivo_layout()
+        self._aviso_layout = (f"Layout recarregado ({motivo})", DURACAO_AVISO_LAYOUT)
+
+    def _vigiar_layout(self, dt):
+        self._tempo_vigia_layout += dt
+        if self._tempo_vigia_layout < INTERVALO_VIGIA_LAYOUT:
+            return
+        self._tempo_vigia_layout = 0.0
+        if self._marca_arquivo_layout() != self._marca_layout:
+            self.recarregar_layout("arquivo alterado")
+
+    def _desenhar_aviso_layout(self, dt):
+        if self._aviso_layout is None:
+            return
+        texto, restante = self._aviso_layout
+        _, altura = self.tela.get_size()
+        ui_theme.desenhar_badge(self.tela, 16, altura - 16, texto, ui_theme.PANEL, cor_texto=ui_theme.INK,
+                                tamanho_fonte=12, ancorar="bottomleft", borda=ui_theme.MINT)
+        restante -= dt
+        self._aviso_layout = (texto, restante) if restante > 0 else None
 
     # ---------------- Navegação entre telas ----------------
     def ir_para_menu(self):
@@ -193,9 +246,11 @@ class App:
         while self.rodando:
             dt = self.clock.tick(FPS) / 1000.0
             self._processar_eventos()
+            self._vigiar_layout(dt)
             self.tela_atual.atualizar(dt)
             ui_theme.set_estilo_baralho(self.settings.baralho_skin)
             self.tela_atual.desenhar(self.tela)
+            self._desenhar_aviso_layout(dt)
             ui_theme.aplicar_scanlines(self.tela)
             pygame.display.flip()
         pygame.quit()
@@ -210,6 +265,8 @@ class App:
                 # chamar set_mode aqui (principalmente logo após alternar a tela
                 # cheia) derrubava o modo fullscreen e desincronizava o botão.
                 self.tela = pygame.display.get_surface()
+            elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_F5:
+                self.recarregar_layout("F5")
             else:
                 self.tela_atual.tratar_evento(evento)
 

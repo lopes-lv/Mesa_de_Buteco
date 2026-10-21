@@ -20,6 +20,8 @@ poker_game/
 ├── core/                           # Base compartilhada pelos 3 modos
 │   ├── deck.py                     # Cartas e baralho
 │   ├── settings.py                 # Configurações de sessão (em memória)
+│   ├── layout.py                   # Tamanhos de carta/peça, espaçamentos e botões
+│   │                                # das mesas (lê config/, ver "Ajustando o layout")
 │   ├── ui_theme.py                 # Biblioteca de desenho Pixel Art Retrô CRT (ativa)
 │   ├── ui_widgets.py               # Widgets pequenos reutilizáveis (CampoTexto)
 │   ├── ui_pixelart.py              # Estética pixel art anterior (não usada mais;
@@ -49,6 +51,16 @@ poker_game/
 │   └── multiplayer_screens.py        # Criar/Entrar em sala, Lobby de espera
 ├── rede/                           # Multiplayer local: protocolo, host (AnfitriaoSala),
 │                                    # cliente (ClienteSala), descoberta por código/UDP
+├── config/
+│   ├── layout_padrao.json          # Valores padrão de layout (versionado)
+│   ├── presets_padrao/             # Presets que vêm com o jogo (compacto, grande)
+│   ├── layout.json                 # Seus ajustes (opcional, fora do git)
+│   └── presets/                    # Seus presets (opcional, fora do git)
+├── tools/                          # Ferramentas de desenvolvimento (fora do .exe)
+│   ├── editor_visual.py            # Editor visual de layout (python tools/editor_visual.py)
+│   ├── editor_widgets.py           # Campo numérico, botões -/+ com repetição
+│   ├── editor_previas.py           # Prévias em tamanho real de cada item
+│   └── editor_mesa.py              # Mesa completa: tela real do jogo + alertas
 └── design/                         # Guias técnicos e mockups HTML dos estilos visuais
 ```
 
@@ -156,6 +168,65 @@ completa (host-autoritativo, protocolo, threads).
 > mostrar um popup pedindo permissão de rede para o jogo/`.exe` — isso é
 > esperado (o host abre sockets TCP/UDP), não é o jogo travando.
 
+## Ajustando o layout (tamanho de cartas, peças, botões)
+
+Os tamanhos de carta/peça, espaçamentos e botões das mesas dos 3 modos, as
+cores do tema, o tamanho das fontes, a borda/sombra de botões e painéis, as
+fichas iniciais e o tempo de jogada dos bots ficam em
+`config/layout_padrao.json` (lidos por `core/layout.py`), não espalhados pelo
+código. O jeito mais fácil de mudar é o editor visual (também abre pelo botão
+"Editor de layout" na tela de Ajustes do jogo):
+
+```bash
+python tools/editor_visual.py
+```
+
+- À esquerda, as variáveis por aba (Hold'em, Pif Paf, Dominó, Geral, Cores).
+  Cada uma tem `-`/`+` (Shift = passo 5x maior, segurar o botão repete), um
+  campo onde dá pra digitar o número (Enter confirma, Esc cancela) e `PADRÃO`
+  para voltar ao valor original. A roda do mouse sobre o número também ajusta.
+- Na aba **CORES**, cada cor tem amostra e código hexadecimal (`#E6A92E`,
+  digitável); selecionada, ganha sliders R/G/B e o contraste com o texto
+  (aviso em vermelho abaixo de 4.5:1). ←→ e a roda clareiam/escurecem. Os
+  botões escolhem texto claro ou escuro sozinhos pelo contraste; selos com cor
+  de texto fixa no código não acompanham — confira na MESA COMPLETA.
+- A interface do editor fica sempre nas cores/fonte padrão; só as prévias
+  usam o que você está editando.
+- À direita, duas vistas (tecla `M` alterna):
+  - **ITEM**: o trecho da mesa afetado, em tamanho real e desenhado com o
+    mesmo código do jogo, com troca de baralho e opção de virar as cartas.
+  - **MESA COMPLETA**: a tela de verdade do jogo, numa partida simulada contra
+    bots congelada numa cena (ex.: "sua vez no flop", "raise aberto", "sua vez
+    no pré-flop", "sem jogada" no Dominó), com escolha de número de jogadores e de tamanho de
+    janela (1280x800 a 1920x1080). O que sai da tela ou se sobrepõe fica
+    contornado em vermelho e listado embaixo; o item selecionado fica em
+    amarelo. O número de problemas aparece na aba mesmo enquanto você edita
+    na vista ITEM. Clique na mesa (ou `F`) para ampliar.
+- "Manter proporção" faz largura e altura de cartas/peças andarem juntas.
+- `Salvar` (Ctrl+S) grava `config/layout.json`. Um jogo aberto percebe o
+  arquivo novo em até 1 segundo e recarrega sozinho; **F5** no jogo força a
+  recarga. Teclado no editor: ↑↓ escolhe o item, ←→ ajusta, 1-5/Tab troca de aba.
+- **Presets** (botão no rodapé): conjuntos prontos de ajustes. Vêm com o jogo
+  o "compacto" (janelas pequenas e notebooks) e o "grande" (telas de 1600x900
+  ou mais); você pode salvar os seus com um nome. Aplicar troca todos os
+  valores pelos do preset (falta Salvar pra valer no jogo). Os seus ficam em
+  `config/presets/` — pra exportar ou importar, copie o `.json` de/pra essa
+  pasta (o botão "Abrir pasta" abre ela).
+
+Também dá pra editar à mão: crie `config/layout.json` só com o que quer
+alterar, por exemplo para aumentar a sua carta no Hold'em:
+
+```json
+{"holdem": {"carta_jogador": [120, 168]}}
+```
+
+Tamanhos são `[largura, altura]` em pixels e cores `[r, g, b]` (0 a 255);
+tempos dos bots em milissegundos. Cada item do arquivo padrão tem
+`min`/`max` (valores fora da faixa são limitados) e um `rotulo` explicando o
+que é. Um `layout.json` ausente, com erro de digitação ou com valor de
+formato errado não quebra o jogo: o item afetado volta ao padrão. O host e o
+cliente remoto de cada modo leem as mesmas chaves.
+
 ## Compilando para .exe (Windows)
 
 1. Instale as dependências em uma máquina/VM Windows (o `.exe` deve ser
@@ -168,14 +239,21 @@ pip install pygame pyinstaller
 2. Na pasta do projeto, rode:
 
 ```bash
-pyinstaller --onefile --windowed --name "PixelPoker" main.py
+pyinstaller PixelPoker.spec
 ```
 
+   O `PixelPoker.spec` equivale a
+   `pyinstaller --onefile --windowed --name "PixelPoker" --add-data "config/layout_padrao.json;config" --add-data "config/presets_padrao/*.json;config/presets_padrao" main.py`:
    - `--onefile`: gera um único executável `.exe`.
    - `--windowed`: remove o console do terminal (janela gráfica pura).
    - `--name "PixelPoker"`: define o nome do executável final.
+   - `--add-data`: embute os valores padrão de layout (sem eles o jogo não
+     abre) e os presets do jogo. Se usar a linha de comando em vez do
+     `.spec`, não esqueça essas opções.
 
-3. O executável final aparece em `dist/PixelPoker.exe`.
+3. O executável final aparece em `dist/PixelPoker.exe`. Para usar ajustes de
+   layout com o exe, coloque um `config/layout.json` na mesma pasta dele (o
+   editor e o botão "Editor de layout" não vão no exe - `tools/` fica de fora).
 
 > Dica: se no futuro você adicionar imagens/sons externos, use também
 > `--add-data "assets;assets"` para embutir a pasta de assets no exe.

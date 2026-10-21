@@ -27,11 +27,16 @@ from .domino_logic import (
     Peca, jogadas_possiveis_em, BONUS_PASSE, DIRECOES,
     FASE_EMBARALHANDO, FASE_ESCOLHENDO, FASE_JOGANDO, DURACAO_EMBARALHAR,
 )
+from .domino_screen import (
+    CENTRO_MESA_Y, FOLGA_ASSENTO_CIMA, FOLGA_ASSENTO_BAIXO, MEIA_LARGURA_ASSENTO, posicionar_botao_passar,
+)
 from core.chat_widget import ChatWidget
+from core import layout
 from rede import protocolo
 
-TAMANHO_PECA_MAO = (46, 92)
-TAMANHO_PECA_MESA = (72, 36)
+# Tamanhos de peça, espaçamentos e botões: mesmas chaves "domino.*"/"geral.*"
+# de core/layout.py que domino_screen.py usa; a geometria da mesa (centro do
+# feltro, folga dos assentos, posição do "Passar") também vem de lá.
 PALETA_AVATAR = [CORAL, PURPLE, BLUE, MINT, (230, 160, 60)]
 
 
@@ -40,7 +45,7 @@ def _horizontal(direcao):
 
 
 def _tamanho_peca(direcao, eh_carroca, escala=1.0):
-    comprimento, espessura = TAMANHO_PECA_MESA
+    comprimento, espessura = layout.obter("domino.peca_mesa")
     retrato = eh_carroca if _horizontal(direcao) else not eh_carroca
     largura, altura = (espessura, comprimento) if retrato else (comprimento, espessura)
     return int(largura * escala), int(altura * escala)
@@ -56,9 +61,11 @@ def _posicoes_assentos(mesa_rect, n_jogadores):
     for i in range(n_jogadores):
         ang = math.radians(angulos[i])
         rx = mesa_rect.width // 2 + 70
-        ry = mesa_rect.height // 2 + 70
+        ry = mesa_rect.height // 2 + (FOLGA_ASSENTO_CIMA if math.sin(ang) < 0 else FOLGA_ASSENTO_BAIXO)
         x = mesa_rect.centerx + int(rx * math.cos(ang))
         y = mesa_rect.centery + int(ry * math.sin(ang))
+        largura_tela = mesa_rect.centerx * 2  # a mesa é centrada na janela
+        x = max(MEIA_LARGURA_ASSENTO, min(largura_tela - MEIA_LARGURA_ASSENTO, x))
         posicoes.append((x, y))
     return posicoes
 
@@ -102,8 +109,9 @@ class MesaRemotaDominoScreen:
         self.vencedor_final = None
 
         self.chat = ChatWidget(self._enviar_chat)
-        self.botao_sair = pygame.Rect(0, 0, 110, 44)
-        self.botao_passar = pygame.Rect(0, 0, 160, 52)
+        self.botao_sair = pygame.Rect(0, 0, 0, 0)
+        self.botao_passar = pygame.Rect(0, 0, 0, 0)
+        self._dimensionar_botoes()
 
     # ---------------------------------------------------------------- Estado
     def _enviar_chat(self, texto):
@@ -293,8 +301,8 @@ class MesaRemotaDominoScreen:
                 return
 
     def _rects_mao_pecas(self, pecas):
-        largura_peca, altura_peca = TAMANHO_PECA_MAO
-        espaco = 8
+        largura_peca, altura_peca = layout.obter("domino.peca_mao")
+        espaco = layout.obter("domino.espaco_mao")
         n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
         largura_tela, altura_tela = pygame.display.get_surface().get_size()
@@ -310,8 +318,8 @@ class MesaRemotaDominoScreen:
         return self._rects_mao_pecas(self._minha_mao_pecas())
 
     def _rects_pilha_escolha(self, mesa_rect):
-        largura_peca, altura_peca = 40, 80
-        espaco = 10
+        largura_peca, altura_peca = layout.obter("domino.peca_pilha_escolha")
+        espaco = layout.obter("domino.espaco_pilha_escolha")
         pecas = self.pecas_para_escolher
         n = len(pecas)
         por_linha = min(7, max(1, n))
@@ -332,10 +340,18 @@ class MesaRemotaDominoScreen:
     def _mesa_rect(self):
         largura, altura = pygame.display.get_surface().get_size()
         mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
-        mesa_rect.center = (largura // 2, int(altura * 0.36))
+        mesa_rect.center = (largura // 2, int(altura * CENTRO_MESA_Y))
         return mesa_rect
 
+    def _dimensionar_botoes(self):
+        """Tamanhos dos botões vêm de core/layout.py. Reaplicado a cada
+        desenhar() pra um layout alterado (editor visual, recarregar) valer
+        sem recriar a tela - a posição é definida depois, no próprio desenho."""
+        self.botao_sair.size = layout.obter("geral.botao_sair")
+        self.botao_passar.size = layout.obter("domino.botao_passar")
+
     def desenhar(self, tela):
+        self._dimensionar_botoes()
         largura, altura = tela.get_size()
         tela.fill(BG)
 
@@ -429,8 +445,8 @@ class MesaRemotaDominoScreen:
     def _layout_mesa(self, mesa_rect):
         """Espelha `DominoTableScreen._layout_mesa`, lendo do snapshot
         público (`self.estado`) em vez de uma `DominoTable` de verdade."""
-        largura_base, altura_base = TAMANHO_PECA_MESA
-        espaco = 4
+        largura_base, altura_base = layout.obter("domino.peca_mesa")
+        espaco = layout.obter("domino.espaco_mesa")
 
         primeira = self.estado.get("primeira_peca")
         if not primeira:
@@ -624,7 +640,7 @@ class MesaRemotaDominoScreen:
                           vertical=True, destaque=destaque)
 
         if self.peca_arrastando is not None:
-            largura_peca, altura_peca = TAMANHO_PECA_MAO
+            largura_peca, altura_peca = layout.obter("domino.peca_mao")
             x = self.pos_arraste[0] - largura_peca // 2
             y = self.pos_arraste[1] - altura_peca // 2
             desenhar_peca(tela, x, y, largura_peca, altura_peca,
@@ -647,8 +663,8 @@ class MesaRemotaDominoScreen:
 
         if not self._tenho_jogada():
             desenhar_texto(tela, "Você não tem peça pra jogar — clique em Passar",
-                            largura // 2, altura - 84, tamanho=13, cor=TEXT_MUTED, centralizado=True)
-            self.botao_passar.center = (largura // 2, altura - 46)
+                            largura // 2, altura - 20, tamanho=13, cor=TEXT_MUTED, centralizado=True)
+            posicionar_botao_passar(self.botao_passar, [r for r, _ in self._rects_mao()], largura, altura)
             mouse_pos = pygame.mouse.get_pos()
             desenhar_botao(tela, self.botao_passar, "Passar",
                             hover=self.botao_passar.collidepoint(mouse_pos), tamanho_fonte=16, cor=CORAL)
@@ -690,7 +706,7 @@ class MesaRemotaDominoScreen:
 
     def _desenhar_mensagem_final(self, tela, largura, altura):
         overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        overlay.fill((*INK, 150))
+        overlay.fill((*INK[:3], 150))
         tela.blit(overlay, (0, 0))
 
         painel = pygame.Rect(0, 0, 440, 200)

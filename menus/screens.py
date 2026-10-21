@@ -2,6 +2,10 @@
 screens.py - Telas de Menu Inicial e Configuração (pré-jogo).
 A tela de Mesa/Gameplay fica em table_screen.py por ser mais extensa.
 """
+import os
+import subprocess
+import sys
+
 import pygame
 from core.ui_theme import (
     BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, MINT, LOCKED,
@@ -11,6 +15,17 @@ from core.ui_theme import (
 from core.deck import Card
 from domino.domino_theme import desenhar_peca
 from core.settings import ROTULOS_VELOCIDADE, ROTULOS_BARALHO_SKIN
+
+# Editor visual de layout (tools/editor_visual.py): a tela de Ajustes tem um
+# botão que o abre num processo separado. Só existe rodando pelo código-fonte
+# - o .exe não inclui tools/. Ao salvar no editor, o jogo recarrega sozinho
+# (ver App._vigiar_layout em main.py).
+CAMINHO_EDITOR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "tools", "editor_visual.py")
+
+
+def editor_disponivel():
+    return not getattr(sys, "frozen", False) and os.path.exists(CAMINHO_EDITOR)
 
 
 class MenuScreen:
@@ -372,12 +387,25 @@ class SettingsScreen:
         self.botao_joker_pifpaf = pygame.Rect(0, 0, 190, 48)
         self.botao_baralho_skin = pygame.Rect(0, 0, 190, 48)
         self.botao_selecao_pecas = pygame.Rect(0, 0, 190, 48)
+        self.botao_editor = pygame.Rect(0, 0, 0, 0)  # ganha tamanho só se o editor existir
+        self.aviso_editor = None
+
+    def _abrir_editor(self):
+        processo = getattr(self.app, "processo_editor", None)
+        if processo is not None and processo.poll() is None:
+            self.aviso_editor = "O editor já está aberto"
+            return
+        self.app.processo_editor = subprocess.Popen(
+            [sys.executable, CAMINHO_EDITOR], cwd=os.path.dirname(os.path.dirname(CAMINHO_EDITOR)))
+        self.aviso_editor = "Editor aberto - ao salvar lá, o jogo atualiza sozinho"
 
     def tratar_evento(self, evento):
         settings = self.app.settings
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             if self.botao_voltar.collidepoint(evento.pos):
                 self.app.ir_para_menu()
+            elif self.botao_editor.collidepoint(evento.pos):
+                self._abrir_editor()
             elif self.botao_tela_cheia.collidepoint(evento.pos):
                 self.app.alternar_tela_cheia()
             elif self.botao_velocidade.collidepoint(evento.pos):
@@ -487,3 +515,13 @@ class SettingsScreen:
         self.botao_voltar.topleft = (30, 30)
         desenhar_botao(tela, self.botao_voltar, "< Voltar",
                         hover=self.botao_voltar.collidepoint(mouse_pos), tamanho_fonte=15, cor=PANEL)
+
+        if editor_disponivel():
+            self.botao_editor.size = (230, 48)
+            self.botao_editor.topright = (largura - 30, 30)
+            desenhar_botao(tela, self.botao_editor, "Editor de layout",
+                            hover=self.botao_editor.collidepoint(mouse_pos), tamanho_fonte=15, cor=PANEL)
+            dica = self.aviso_editor or "F5 recarrega o layout em qualquer tela"
+            largura_dica = obter_fonte(12).size(dica)[0]
+            desenhar_texto(tela, dica, self.botao_editor.right - largura_dica, self.botao_editor.bottom + 14,
+                            tamanho=12, cor=MINT if self.aviso_editor else TEXT_MUTED)

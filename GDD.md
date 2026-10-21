@@ -88,6 +88,14 @@ O jogo suportará diferentes modalidades de jogos de baralho.
 - Permitirá a montagem e criação de novos designs de cartas de forma visual e guiada.
 - Possibilidade de salvar o baralho personalizado como um pacote de *assets* para uso no jogo.
 
+### 3.4 Editor Visual de Layout (implementado)
+- Ferramenta separada (`python tools/editor_visual.py`, ou o botão "Editor de layout" na tela de Ajustes quando o jogo roda pelo código-fonte) para ajustar sem programar: tamanho das cartas, peças e botões, espaçamentos, as 16 cores do tema, tamanho das fontes, borda/sombra, fichas iniciais e tempo de jogada dos bots.
+- Cada valor tem botões -/+, campo digitável e "padrão"; as cores têm sliders RGB e aviso de contraste.
+- Duas prévias: **ITEM** (o trecho afetado, em tamanho real) e **MESA COMPLETA** (a tela de verdade do jogo numa partida simulada, com escolha de cena, número de jogadores e tamanho de janela, e alertas automáticos do que sai da tela ou se sobrepõe).
+- Os valores ficam em `config/layout_padrao.json` (padrão) e `config/layout.json` (ajustes do jogador). Um jogo aberto recarrega sozinho quando o editor salva (ou com F5).
+- **Presets:** "compacto" (janelas pequenas e notebooks) e "grande" (telas de 1600x900 ou mais) vêm com o jogo; o jogador pode salvar os próprios e trocá-los copiando os `.json` da pasta `config/presets/`.
+- A mesma infraestrutura (valores num JSON, prévia com o código real do jogo, recarga sem reiniciar) pode servir de base para a Ferramenta de Criação de Baralhos (3.3).
+
 ## 4. Interface e Experiência do Usuário (UI/UX)
 - **Estética:** Interface polida e moderna, mas mantendo a essência e o charme da pixel art.
 - **Fluxo de Telas:**
