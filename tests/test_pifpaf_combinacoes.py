@@ -46,10 +46,6 @@ def test_pc_06_o_joker_completa_trinca_e_sequencia():
     assert pode_bater_mao(cartas("7c 7o 7p *"))        # quadra com Joker
 
 
-@pytest.mark.xfail(reason="BUG: o Joker só preenche buracos no meio da sequência; não estende a "
-                          "ponta. '4e 5e *' (3-4-5 ou 4-5-6) e 'Ke Ae *' (Q-K-A) deveriam fechar, "
-                          "mas _candidatos_sequencia descarta spans < 3 entre as cartas presentes. "
-                          "README: o Joker substitui qualquer carta em qualquer combinação.")
 @pytest.mark.parametrize("texto", ["4e 5e *", "Ke Ae *", "Ae 2e *"])
 def test_pc_06_o_joker_estende_a_ponta_de_uma_sequencia(texto):
     assert pode_bater_mao(cartas(texto))

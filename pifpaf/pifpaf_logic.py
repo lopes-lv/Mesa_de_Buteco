@@ -87,18 +87,30 @@ def _candidatos_sequencia(cartas_mesmo_naipe, coringas_disp):
             vv = 1 if (v == 14 and as_baixo) else v
             valores[vv] = c
         ordenados = sorted(valores.keys())
+        # Faixa de valores que uma sequência pode ocupar nesta leitura do As
+        # (o Joker que estende a ponta não pode sair dela).
+        piso, teto = (1, 13) if as_baixo else (2, 14)
         for i in range(len(ordenados)):
             for j in range(i, len(ordenados)):
                 ini, fim = ordenados[i], ordenados[j]
                 span = fim - ini + 1
-                if span < 3:
-                    continue
                 presentes = [v for v in ordenados if ini <= v <= fim]
                 falta = span - len(presentes)
                 if falta > coringas_disp:
                     continue
                 cartas = tuple(valores[v] for v in presentes)
-                candidatos.append((cartas, falta))
+                if span >= 3:
+                    candidatos.append((cartas, falta))
+                    continue
+                # Janela curta (2 cartas naturais seguidas): o Joker estende a
+                # ponta até fechar 3 posições. Uma carta sozinha não vira
+                # sequência só com Jokers.
+                if i == j:
+                    continue
+                extra = 3 - span  # i < j garante span >= 2, logo 1 Joker
+                cabe = ini - extra >= piso or fim + extra <= teto
+                if cabe and falta + extra <= coringas_disp:
+                    candidatos.append((cartas, falta + extra))
     return candidatos
 
 

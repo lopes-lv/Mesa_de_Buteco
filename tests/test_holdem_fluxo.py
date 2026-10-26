@@ -66,9 +66,6 @@ def test_hf_04_o_dealer_pula_quem_foi_eliminado():
     assert mesa.dealer_idx == 2
 
 
-@pytest.mark.xfail(reason="BUG (off-by-one): o nível sobe na 5ª mão, não na 6ª. iniciar_nova_mao "
-                          "incrementa mao_numero e depois faz mao_numero // MAOS_POR_NIVEL, então o "
-                          "nível 10/20 dura só 4 mãos. README: o nível sobe a cada 5 mãos.")
 def test_hf_05_cada_nivel_de_blind_dura_cinco_maos():
     mesa, _ = nova_mesa(3)
     niveis = []

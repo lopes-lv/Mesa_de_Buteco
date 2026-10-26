@@ -189,10 +189,10 @@ class DominoTable:
         self.jogadores = jogadores
         self.mao_numero = 0
 
-        self.primeira_peca = None   # PecaNaMesa da peça de abertura (centro da mesa)
+        self.primeira_peca: PecaNaMesa | None = None   # PecaNaMesa da peça de abertura (centro da mesa)
         self.eh_spinner = False     # True se a peça de abertura for carroça (bucho: cima/baixo liberados)
-        self.ramos = {d: [] for d in DIRECOES}          # cada um cresce de dentro pra fora
-        self.extremidades = {d: None for d in DIRECOES}  # valor aberto na ponta de cada ramo
+        self.ramos: dict[str, list[PecaNaMesa]] = {d: [] for d in DIRECOES}  # cada um cresce de dentro pra fora
+        self.extremidades: dict[str, int | None] = {d: None for d in DIRECOES}  # valor aberto na ponta de cada ramo
 
         self._ordem = []          # ordem de turno fixa desta mão
         self.indice_da_vez = 0
@@ -303,18 +303,26 @@ class DominoTable:
             return 0
         total_pecas = 1 + sum(len(self.ramos[d]) for d in DIRECOES)
         if total_pecas == 1:
-            return self.extremidades["esquerda"] + self.extremidades["direita"]
+            return self._ponta("esquerda") + self._ponta("direita")
 
         soma = 0
         for d in ("esquerda", "direita"):
             ramo = self.ramos[d]
             ponta_carroca = ramo[-1].peca.eh_carroca if ramo else self.primeira_peca.peca.eh_carroca
-            soma += self.extremidades[d] * (2 if ponta_carroca else 1)
+            soma += self._ponta(d) * (2 if ponta_carroca else 1)
         for d in ("cima", "baixo"):
             ramo = self.ramos[d]
             if ramo:
-                soma += self.extremidades[d] * (2 if ramo[-1].peca.eh_carroca else 1)
+                soma += self._ponta(d) * (2 if ramo[-1].peca.eh_carroca else 1)
         return soma
+
+    def _ponta(self, direcao):
+        """Valor aberto na ponta `direcao`, que o chamador sabe estar em jogo
+        (esquerda/direita existem desde a peça de abertura; cima/baixo só
+        são lidos com ramo não vazio ou como alvo da jogada em análise)."""
+        valor = self.extremidades[direcao]
+        assert valor is not None, f"ponta '{direcao}' sem valor: ramo fora de jogo"
+        return valor
 
     def pontuacao_se_jogar(self, peca, direcao):
         """Quantos pontos essa jogada renderia pelo múltiplo de 5 nas
@@ -324,6 +332,8 @@ class DominoTable:
             pontos = peca.a + peca.b
             return pontos if pontos % 5 == 0 else 0
 
+        primeira = self.primeira_peca
+        assert primeira is not None  # mesa_vazia() já tratada acima
         item, novo_valor = self._prever_insercao(peca, direcao)
         soma = 0
         for d in ("esquerda", "direita"):
@@ -331,8 +341,8 @@ class DominoTable:
                 valor, ponta_carroca = novo_valor, item.peca.eh_carroca
             else:
                 ramo = self.ramos[d]
-                valor = self.extremidades[d]
-                ponta_carroca = ramo[-1].peca.eh_carroca if ramo else self.primeira_peca.peca.eh_carroca
+                valor = self._ponta(d)
+                ponta_carroca = ramo[-1].peca.eh_carroca if ramo else primeira.peca.eh_carroca
             soma += valor * (2 if ponta_carroca else 1)
         for d in ("cima", "baixo"):
             if d == direcao:
@@ -340,7 +350,7 @@ class DominoTable:
             else:
                 ramo = self.ramos[d]
                 if ramo:
-                    soma += self.extremidades[d] * (2 if ramo[-1].peca.eh_carroca else 1)
+                    soma += self._ponta(d) * (2 if ramo[-1].peca.eh_carroca else 1)
         return soma if soma % 5 == 0 else 0
 
     # ------------------------------------------------------------ Ações

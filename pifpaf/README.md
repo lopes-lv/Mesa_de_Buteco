@@ -82,6 +82,11 @@ ação desce quando cobriria um painel de assento). Os tamanhos vêm das chaves
 
 ## Notas de atualização
 
+### Outubro de 2026 — Joker na ponta da sequência
+- O Joker agora **estende a ponta** de uma sequência: `4♠ 5♠ ★` (3-4-5 ou 4-5-6), `A♠ 2♠ ★` e
+  `K♠ A♠ ★` (Q-K-A) fecham. Antes ele só preenchia buraco no meio. Continua valendo que o Ás não liga
+  Q-K-A-2 e que uma carta sozinha com Jokers não vira sequência.
+
 ### Outubro de 2026 — sem fichas e sem vira
 - **Sem fichas.** O Pif Paf deixou de ter economia: ninguém paga nem é
   eliminado. Quem bate ganha a mão (`PifPafPlayer.vitorias`), e a partida

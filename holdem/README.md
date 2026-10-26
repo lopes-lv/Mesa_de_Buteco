@@ -91,6 +91,10 @@ geometria, então **mudanças de posição precisam ser feitas nos dois arquivos
 ## Notas de atualização
 
 ### Outubro de 2026
+- **Blinds e showdown corrigidos.** O nível de blind agora sobe na 6ª mão (cada nível dura as 5 mãos
+  prometidas; antes subia na 5ª). O showdown também passou a funcionar com ids de jogador que não são
+  a posição do assento (no multiplayer, quem sai do lobby deixa um buraco nos ids), e o desempate da
+  ficha ímpar continua indo para o primeiro empatado depois do dealer.
 - **Carteira persistente** no Hold'em solo (veja acima). Antes, cada partida
   recomeçava com as fichas iniciais.
 - **Layout em janelas menores (1024x768 a 1920x1080):** o detector do editor

@@ -1,6 +1,6 @@
 # Testes do Pixel Poker
 
-297 testes automáticos para as regras dos três modos (Hold'em, Pif Paf, Dominó)
+331 testes automáticos para as regras dos três modos (Hold'em, Pif Paf, Dominó)
 e para a estrutura do projeto (layout, rede, telas, módulos). Rodam sem janela
 e sem som, em cerca de 10 segundos.
 
@@ -52,6 +52,7 @@ No Windows com PowerShell o comando é o mesmo. O `conftest.py` já configura
 | `test_estrutura_rede.py` | ER | Protocolo de rede: ida e volta, mensagem partida, mensagens coladas, limite de tamanho, JSON inválido. |
 | `test_estrutura_modulos.py` | EM | Todo módulo importa, o app sobe e navega, host e cliente compartilham a geometria, o `.spec` aponta para arquivos que existem, `tools/` não entra no jogo. |
 | `test_estrutura_telas.py` | ET | Todas as telas desenham em 1280x800 e 1024x768: menus, mesas do host, mesas do cliente remoto (com o estado real do host, passando por JSON), os 10 baralhos, salas de espera. A matriz do detector do editor (`lento`) não pode acusar erro. |
+| `test_consistencia.py` | CN | Procura variáveis e funções repetidas (ver abaixo): constantes com o mesmo nome em vários módulos, o mesmo valor com nomes diferentes, chaves do layout com valores iguais e funções copiadas entre telas. Host e cliente remoto do Hold'em não podem divergir. |
 | `test_simulacao.py` | SI | Partidas completas só de bots: terminam, conservam fichas/cartas/peças, sem repetição. Propriedades com Hypothesis. |
 
 ## Como os testes são escritos
@@ -78,13 +79,34 @@ corrigido, o teste passa a aparecer como `XPASS`: aí é só tirar a marca.
 
 | Teste | Problema |
 |---|---|
-| `test_et_06_a_sala_de_espera_do_anfitriao_desenha` | `menus/multiplayer_screens.py:324` usa `SOMBRA` sem importar. Nenhum host consegue abrir uma sala multiplayer. O mesmo erro faz o passo `ruff` do CI falhar. |
-| `test_pc_06_o_joker_estende_a_ponta_de_uma_sequencia` | O Joker só preenche buraco no meio da sequência. `4e 5e *` e `Ke Ae *` deveriam fechar. |
-| `test_hf_05_cada_nivel_de_blind_dura_cinco_maos` | O nível 10/20 dura 4 mãos, não 5 (off-by-one em `iniciar_nova_mao`). |
-| `test_hp_10_o_showdown_funciona_com_ids_...` | `processar_showdown` usa o id do jogador como posição do assento. Com ids que não sejam 0..n-1 (sala multiplayer em que alguém saiu do lobby), levanta `ValueError`. |
 | `test_hv_07_holdem_raise_abaixo_do_minimo_e_recusado` e `test_ha_07_raise_abaixo_do_minimo_e_recusado` | Não existe raise mínimo, nem no motor nem no host. |
 | `test_hb_03_o_raise_nunca_passa_do_que_o_bot_tem` | O bot às vezes devolve raise de um big blind inteiro com stack menor. |
+| `test_cn_09`, `test_cn_10`, `test_cn_11` | Dívida de duplicação de código (ver a seção acima). |
 | `test_dj_12`, `test_dj_13`, `test_ha_07_check...`, `test_ha_07_acao_fora_da_vez...` | Defesa em profundidade: os motores aceitam jogar fora da vez, passar tendo jogada e check com aposta aberta. Hoje quem recusa é a tela do host (testes `HV`, que passam). Só importa se algum dia outra parte do código chamar o motor direto. |
+
+## Variáveis e funções repetidas (`test_consistencia.py`)
+
+O QA não enxerga duas variáveis que fazem a mesma coisa; este arquivo faz uma
+varredura do código (módulo `ast`) por conta própria. Dois tipos de teste:
+
+- **Catraca (passa hoje):** a repetição que já existe está listada no próprio
+  arquivo. Uma repetição **nova** reprova e diz onde mover o valor. Se for
+  proposital, acrescente à lista com um comentário.
+- **Dívida (`xfail`):** afirma o ideal (cada coisa num lugar só) e falha de
+  propósito. Para ver a lista completa do que está repetido:
+
+```bash
+pytest tests/test_consistencia.py --runxfail -k divida
+```
+
+O que a varredura encontrou hoje: `TIPO_BOT`, `TIPO_HUMANO_LOCAL` e
+`TIPO_HUMANO_REMOTO` definidos 3 vezes (um por motor); as constantes `HIST_*`,
+`ANIM_CROUPIER_DURACAO` e `VAO_PAINEL_CARTAS_BOT` duplicadas entre as telas do
+Hold'em; `PALETA_AVATAR` em 6 telas; `NAIPE_UNICODE` em 3; `FOLGA_ASSENTO` e
+`FOLGA_ASSENTO_BAIXO` com o mesmo valor (70); e 15 grupos de funções idênticas
+entre telas de host e cliente remoto (`_iniciais` e `_desenhar_botao_sair` em 6
+telas cada). `core/ui_pixelart.py` fica de fora da varredura: é código antigo
+guardado só como referência.
 
 ## Integração contínua
 

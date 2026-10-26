@@ -143,9 +143,6 @@ class AnfitriaoFalso(SalaFalsa):
         return [{"id": 0, "nome": "Host", "anfitriao": True}, {"id": 1, "nome": "Ana", "anfitriao": False}]
 
 
-@pytest.mark.xfail(reason="BUG: LobbyScreen.desenhar (menus/multiplayer_screens.py:324) usa SOMBRA, que "
-                          "não está importado: NameError ao desenhar a sala de espera do anfitrião, "
-                          "então nenhum host consegue abrir uma sala multiplayer. Achado pelo ruff (F821).")
 @pytest.mark.parametrize("jogo", ["holdem", "pifpaf", "domino"])
 def test_et_06_a_sala_de_espera_do_anfitriao_desenha(jogo, janela):
     from menus.multiplayer_screens import LobbyScreen

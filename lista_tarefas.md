@@ -1,6 +1,6 @@
 ---
 estado: em andamento
-proximo_passo: Corrigir os bugs que a suíte de testes achou (começar pela sala de espera do anfitrião, `SOMBRA` sem import em `menus/multiplayer_screens.py:324`, que impede qualquer sala multiplayer) tirando a marca `xfail` de cada teste conforme corrige; depois ajustar o `qa.toml` (`tests = ["tests"]`) e rodar o `qa run` de novo; o build do `.exe` e o multiplayer em duas máquinas seguem pendentes
+proximo_passo: LINT-1/LINT-2 (deixam o `ruff` do CI verde) e QA-1; depois as REGRA (`xfail` que sobraram: raise mínimo, bot, validação nos motores); REDE-1 (duas máquinas) e BUILD-1 (`.exe`) seguem pendentes
 bloqueios:
 ---
 # poker_game
@@ -8,44 +8,105 @@ bloqueios:
 **Objetivo:** Texas Hold'em, Pif Paf e Dominó em Python + Pygame, solo contra bots ou multiplayer local, com estética "Pixel Art Retrô CRT".
 
 ## Tarefas
-- [ ] BUG (achado pelos testes): a sala de espera do anfitrião quebra com `NameError: SOMBRA` (`menus/multiplayer_screens.py:324`, falta importar de `core.ui_theme`); nenhum host consegue abrir sala multiplayer. Teste: `test_et_06_a_sala_de_espera_do_anfitriao_desenha`. O passo `ruff` do CI fica vermelho até corrigir
-- [ ] BUG (achado pelos testes): o Joker do Pif Paf não estende a ponta de uma sequência (`4e 5e *` e `Ke Ae *` deveriam fechar; `_candidatos_sequencia` só preenche buraco no meio). Teste: `test_pc_06_o_joker_estende_a_ponta_de_uma_sequencia`
-- [ ] BUG (achado pelos testes): o nível de blind do Hold'em sobe na 5ª mão em vez da 6ª, então o 10/20 dura 4 mãos (off-by-one em `Table.iniciar_nova_mao`/`atualizar_nivel_blind`). Teste: `test_hf_05_cada_nivel_de_blind_dura_cinco_maos`
-- [ ] BUG (achado pelos testes): `Table.processar_showdown` usa o id do jogador como posição do assento; com ids fora de 0..n-1 (no multiplayer o anfitrião nunca reutiliza ids, então quem sai do lobby e dá lugar a outro quebra o showdown) levanta `ValueError`. Teste: `test_hp_10_o_showdown_funciona_com_ids_que_nao_sao_a_posicao_do_assento`
-- [ ] Hold'em: não existe raise mínimo (nem no motor nem no host, que aceita raise de 1 ficha); decidir a regra (big blind? último raise?). Testes: `test_hv_07_...` e `test_ha_07_raise_abaixo_do_minimo...`
-- [ ] Hold'em, bot: devolve raise de um big blind inteiro com stack menor que isso (`bot_ai.py`, ramos "score >= 43" e blefe). Teste: `test_hb_03_o_raise_nunca_passa_do_que_o_bot_tem`
-- [ ] Motores sem defesa própria (só a tela do host valida): `BettingRound` aceita check com aposta aberta e ação fora da vez; `DominoTable` aceita jogar fora da vez e passar tendo jogada. Decidir se vale mover a validação para o motor. Testes `xfail`: `test_ha_07_*`, `test_dj_12_*`, `test_dj_13_*`
-- [ ] CI: conferir o primeiro run de `.github/workflows/ci.yml` no GitHub (só validado localmente); disparar o job `exe` manualmente para validar o build com o `PixelPoker.spec`
-- [ ] QA: no `qa.toml` colocar `tests = ["tests"]` e apontar `docs.files` só para os `.md` que existem (GDD.md, PIF_PAF_GUIA.md e NOTAS_ATUALIZACAO_DOMINO.md foram removidos), depois rodar `qa run` de novo para ver só os achados reais
-- [ ] Pif Paf sem fichas/vira: jogar de verdade (solo e multiplayer) conferindo o placar de vitórias nos assentos e no selo "VOCE: n/3 VITORIAS", a tela de fim de jogo e o Joker opcional; decidir se 3 vitórias é o limite certo (`VITORIAS_PARA_VENCER`) e se a "mão fechada" deve valer 2
-- [ ] Tela de resultado do Pif Paf: no caso de mão empatada o host não desenha o botão "Continuar" (`_desenhar_resultado` retorna antes) — conferir se dá para avançar
-- [ ] Carteira de fichas do Hold'em solo (`core/carteira.py`): jogar de verdade conferindo que o saldo persiste entre sessões, que perder tudo bloqueia o "Iniciar Partida" por 12 h (aviso na tela de Configuração) e que fechar a janela no meio da mão salva o saldo sem a aposta; avaliar se Pif Paf deve usar a mesma carteira e se o padrão global `geral.fichas_iniciais` (hoje 1500) deve passar a 2000
-- [ ] Revisão visual manual do redesign Pixel Art Retrô CRT: só foi validado por render headless (telas estáticas); falta rodar `python main.py` de verdade e conferir hover/clique dos botões, o slider de raise, o drag-and-drop do Dominó, o skin "Dark" do baralho e as 8 skins novas no seletor de setas da tela de Configuração (nenhuma recapturada em uso real)
-- [ ] Espectador de Hold'em: testar o modo espectador em partida multiplayer real (só validado por render headless do host)
-- [ ] Design Geral: revisar o layout em janelas muito pequenas com 8 jogadores na mesa (selo SB/BB pode encostar na borda superior nesse caso extremo)
-- [ ] Desenho do Baralho: refinar a carta "padrão"/"Dark" (`desenhar_carta` em `ui_theme.py`) — naipes, tipografia dos números, verso da carta
-- [ ] Ferramenta de Criação de Baralhos (modo admin/editor): seção para criar e salvar baralhos personalizados de forma visual/guiada
-- [ ] Novos Modos de Jogo: implementar um modo inédito (já existe card "EM BREVE" reservado na tela de escolha de modo)
-- [ ] Multiplayer Local: testar com duas máquinas físicas reais na mesma Wi-Fi (só validado via 127.0.0.1 até agora); reconexão após queda; chat de voz; revelar cartas de todos no showdown para os clientes remotos
-- [ ] Documentação: criar guia + mockup para os 2 estilos visuais ainda não explorados (Dark Glassmorphism e Terminal Tático/Sci-Fi Minimal)
-- [x] Editor visual de layout — Fase 2: `tools/editor_visual.py` (app Pygame separado) com botões `-`/`+`, campo numérico, "restaurar padrão" e prévia ao vivo das cartas, gravando `config/layout.json` via `core/layout.py` (`definir`/`salvar` já existem) — feito, ver "Concluído"
-- [ ] Editor visual de layout: uso real com mouse/teclado de verdade (só foi testado com eventos simulados headless + abertura da janela real sem interação)
-- [x] Editor visual de layout — Fase 3: prévia da mesa completa por modo com alerta de sobreposição — feito, ver "Concluído"
-- [x] Editor visual de layout — Fase 4: cores da paleta, fonte, borda/sombra, fichas iniciais e tempo dos bots — feito, ver "Concluído"
-- [x] Editor visual de layout — Fase 5: recarregar layout no jogo sem reiniciar, presets nomeados, exportar/importar — feito, ver "Concluído"
-- [ ] Editor visual de layout — opcional da Fase 5 feito só em parte: o editor abre pelo botão "Editor de layout" dos Ajustes, mas como janela separada (processo à parte), não como uma tela dentro do jogo; e não existe no `.exe` (que não leva `tools/`)
-- [ ] Tela de Ajustes: o subtítulo "Valem a partir da próxima partida iniciada" fica escondido atrás do painel (o painel é desenhado depois e cobre o texto, em 800px de altura) - já era assim; visto no render headless
-- [ ] Editor visual de layout — opcional da Fase 4 não feito: arrastar pra redimensionar direto na prévia (alças nos cantos da carta)
-- [ ] Cores: selos e textos que fixam a cor do texto na chamada (`cor_texto=SOMBRA/INK`, ex.: "POTE", "Apostou 20") não acompanham uma cor de fundo editada — só os botões escolhem texto claro/escuro sozinhos (`ui_theme.cor_texto_sobre`). Pra paletas muito diferentes, trocar essas chamadas por `cor_texto_sobre(fundo)`
-- [x] Pif Paf: o texto "DESCARTAR" ficava por baixo do selo de atalho "ENTER" — corrigido: padrão de `pifpaf.botao_jogada` passou de 150 para 230px (a conta com a fonte e o selo reais dá 220px no mínimo; o rótulo do item no editor avisa)
-- [x] Dominó, sem jogada: as peças da mão ficavam por cima do botão "Passar" e do texto de dica — corrigido: o "Passar" vai ao lado da mão (`domino_screen.posicionar_botao_passar`, usada também pelo cliente remoto) e a dica fica embaixo da mão, como as outras dicas
-- [x] Dominó com 4 jogadores: o painel do assento de cima saía pela borda superior — corrigido: feltro centrado em 44% da altura (era 36%) e assentos da metade de cima a 36px do feltro (eram 70), constantes `CENTRO_MESA_Y`/`FOLGA_ASSENTO_*` em `domino_screen.py`, importadas pelo cliente remoto
-- [x] Hold'em com 8 jogadores: as cartas do vizinho da esquerda invadiam o painel "Você" — corrigido (ângulos refinados de novo na correção das janelas menores, ver "Concluído"); host e cliente remoto
-- [x] Layout em janelas menores (1024x768/1366x768) — corrigido, ver "Concluído". O detector do editor não acusa mais nenhum problema em nenhuma combinação de modo × jogadores × janela (1024x768 a 1920x1080) × cena
-- [ ] Validar um build real do `.exe` com o `PixelPoker.spec` atualizado (embute `config/layout_padrao.json` e `config/presets_padrao/`) — não testado ainda
+Cada item é um ticket pequeno (ID = tema + número). Tarefas grandes foram divididas em dois tickets (a/b) com o mesmo objetivo. `PRIORIDADE` = fazer antes dos outros do tema.
+
+### BUG — achados pelos testes (tirar o `xfail` do teste ao corrigir)
+- [x] **BUG-1** PRIORIDADE — importar `SOMBRA` de `core.ui_theme` em `menus/multiplayer_screens.py:324`; hoje a sala de espera do anfitrião quebra com `NameError` e nenhum host abre sala multiplayer. Teste: `test_et_06_a_sala_de_espera_do_anfitriao_desenha`
+- [x] **BUG-2** Pif Paf: o Joker não estende a ponta de uma sequência (`4e 5e *` e `Ke Ae *` deveriam fechar; `_candidatos_sequencia` só preenche buraco no meio). Teste: `test_pc_06_o_joker_estende_a_ponta_de_uma_sequencia`
+- [x] **BUG-3** Hold'em: o blind sobe na 5ª mão em vez da 6ª (off-by-one em `Table.iniciar_nova_mao`/`atualizar_nivel_blind`). Teste: `test_hf_05_cada_nivel_de_blind_dura_cinco_maos`
+- [x] **BUG-4** Hold'em: `Table.processar_showdown` usa o id do jogador como posição do assento e levanta `ValueError` com ids fora de 0..n-1 (no multiplayer o anfitrião nunca reutiliza ids). Teste: `test_hp_10_o_showdown_funciona_com_ids_que_nao_sao_a_posicao_do_assento`
+- [x] **BUG-5** (a conferir, mypy) `self.chat` pode ser `None` ao chamar `adicionar_mensagem` (`domino/domino_screen.py:157`/`:211`, `holdem/table_screen.py:113`/`:335`, `pifpaf/pifpaf_screen.py:175`/`:240`); ver se o chat sempre existe no multiplayer e, se não, proteger a chamada — resolvido: era falso positivo (o chat só é chamado com `sala_rede`, e então existe); guarda `is not None` nos 6 pontos
+- [x] **BUG-6** (a conferir, mypy) `DominoTable.pontuacao_se_jogar` usa `extremidades[...]` que pode ser `None` (`domino/domino_logic.py:306`, `:312`, `:316`, `:343`); conferir se algum caminho real chega com `None`, senão só anotar o tipo — resolvido: nenhum caminho real chega com `None`; tipos anotados e helper `_ponta` com assert que documenta a invariante
+- [x] **BUG-7** (a conferir, mypy) `core/carteira.py:92` atribui `float` onde o tipo é `int | None`, e `tools/editor_visual.py:114-115` usa `.rect` de `CampoHex | None`; corrigir ou anotar — resolvido: `dict[str, float | None]` em `carteira.registrar` e guarda `campo_hex is not None` no editor
+
+### REGRA — regras e motores de jogo
+- [ ] **REGRA-1a** Hold'em: decidir a regra do raise mínimo (big blind? último raise?) e registrar no `holdem/README.md`
+- [ ] **REGRA-1b** Hold'em: implementar o raise mínimo no motor e no host (hoje aceita raise de 1 ficha). Testes: `test_hv_07_...` e `test_ha_07_raise_abaixo_do_minimo...`
+- [ ] **REGRA-2** Hold'em, bot: `bot_ai.py` (ramos "score >= 43" e blefe) devolve raise de um big blind inteiro com stack menor que isso. Teste: `test_hb_03_o_raise_nunca_passa_do_que_o_bot_tem`
+- [ ] **REGRA-3a** Hold'em: decidir e, se valer, mover para o motor a validação de `BettingRound` (check com aposta aberta e ação fora da vez; hoje só a tela do host valida). Testes `xfail`: `test_ha_07_*`
+- [ ] **REGRA-3b** Dominó: decidir e, se valer, mover para `DominoTable` a validação de jogar fora da vez e de passar tendo jogada. Testes `xfail`: `test_dj_12_*`, `test_dj_13_*`
+- [ ] **REGRA-4** Pif Paf: na mão empatada o host não desenha o botão "Continuar" (`_desenhar_resultado` retorna antes); conferir se dá para avançar e corrigir
+- [ ] **REGRA-5** Pif Paf: decidir se 3 vitórias (`VITORIAS_PARA_VENCER`) é o limite certo e se a "mão fechada" deve valer 2
+- [ ] **REGRA-6** Carteira do Hold'em: decidir se o Pif Paf deve usar a mesma carteira e se `geral.fichas_iniciais` (hoje 1500) passa a 2000
+
+### LINT — lint, estilo e tipagem
+- [ ] **LINT-1** PRIORIDADE — remover os 14 imports não usados (`F401`), conferindo antes de apagar cada um (alguns podem ser reexportados): `FELT`/`FELT_DARK` em `domino/domino_screen.py:24` e `domino/mesa_remota_domino_screen.py:21`, `BONUS_PASSE`/`DIRECOES` em `domino/mesa_remota_domino_screen.py:27`, `LOCKED` em `menus/multiplayer_screens.py:12`, `pifpaf/pifpaf_screen.py:20` e `pifpaf/mesa_remota_pifpaf_screen.py:20`, `TEXT_MUTED` em `core/chat_widget.py:15`, `desenhar_mesa` em `holdem/table_screen.py:19` e `holdem/mesa_remota_screen.py:18`, `math` em `pifpaf/mesa_remota_pifpaf_screen.py:14`, `Peca` em `tests/test_domino_pontuacao.py:6`
+- [ ] **LINT-2** PRIORIDADE — remover as 3 variáveis de laço sem uso (`B007`): `carta` em `pifpaf/pifpaf_screen.py:334` e `pifpaf/mesa_remota_pifpaf_screen.py:233`, `turno` em `tests/test_pifpaf_mesa.py:177`. O passo `ruff` do CI fica vermelho até LINT-1, LINT-2 e BUG-1 saírem
+- [ ] **LINT-3** Estilo (ruff), numa passada de formatador: 28 linhas acima de 120 colunas (`E501`), 27 linhas só com espaços (`W293`) e 11 `zip()` sem `strict=` (`B905`, ex.: `core/layout.py:73`)
+- [ ] **LINT-4** Tipagem de `main.py`: anotar `App.tela_atual` com uma base comum (`Tela`/`Protocol`) para limpar os 17 erros `assignment` (`main.py:108` a `:251`)
+- [ ] **LINT-5** Tipagem do resto: `menus/screens.py` (13 `index` de `object`, `:145` a `:192`, e `:378 .upper`), `core/baralhos_skins.py:241-255` e `tools/editor_mesa.py:149-166` (`AppFalso`); tipar os dicionários de configuração. Baixa prioridade
+- [ ] **LINT-6** Código morto (vulture, 67 achados de confiança baixa: `holdem` 16, `menus` 14, `pifpaf` 14, `tools` 13, `core` 7, `domino` 2, `rede` 1): só apagar o que a busca por texto confirmar que ninguém usa (em Pygame muita coisa é chamada por evento ou nome)
+
+### REFAT — duplicação e complexidade
+- [ ] **REFAT-1** Extrair para `core/` as constantes duplicadas achadas por `tests/test_consistencia.py`: `TIPO_*` (3x, um por motor), `PALETA_AVATAR` (6 telas) e `FOLGA_ASSENTO` = `FOLGA_ASSENTO_BAIXO`. Ver `pytest tests/test_consistencia.py --runxfail -k divida`
+- [ ] **REFAT-2** Extrair para `core/` as 15 funções idênticas entre telas de host e cliente remoto (`_iniciais`, `_desenhar_botao_sair` em 6 telas, etc.)
+- [ ] **REFAT-3** Duplicação do `pylint-duplicados` (58 grupos): blocos de 31 a 41 linhas entre host e cliente remoto e entre `holdem/mesa_remota_screen.py` e `holdem/table_screen.py`. Mais afetados: `domino/domino_screen.py` (25 grupos), `holdem/mesa_remota_screen.py` (14), `domino/mesa_remota_domino_screen.py` (11), `pifpaf/mesa_remota_pifpaf_screen.py` (5)
+- [ ] **REFAT-4** Duplicação do cache de fonte entre `core/ui_pixelart.py:40-63` e `core/ui_theme.py:126-153`
+- [ ] **REFAT-5a** Complexidade das telas de mesa: quebrar os `tratar_evento` (`holdem/table_screen.py:150` CC36, `holdem/mesa_remota_screen.py:203` CC33, `domino/domino_screen.py:291` CC29, `domino/mesa_remota_domino_screen.py:223` CC27); fazer junto com REFAT-2 e REFAT-3
+- [ ] **REFAT-5b** Complexidade das ferramentas e do bot: `tools/editor_mesa.py:289 calcular_alertas` (CC54), `tools/editor_visual.py:473 _tratar_clique` (27) e `:548 _tratar_tecla` (25), `holdem/bot_ai.py:44 decidir_acao_bot` (23); sobram ainda ~55 funções acima de CC 10 (66 no total) e 5 arquivos de manutenibilidade rank C: `holdem/table_screen.py` 0.0, `tools/editor_visual.py` 0.0, `domino/domino_screen.py` 2.5, `pifpaf/pifpaf_screen.py` 2.8, `domino/mesa_remota_domino_screen.py` 5.1
+
+### SEG — segurança
+- [ ] **SEG-1** (bandit) 3 blocos de exceção engolida (`except` com `continue`) em `core/baralhos_skins.py:106`, `core/ui_pixelart.py:45` e `core/ui_theme.py:131`: ao menos registrar o erro
+- [ ] **SEG-2** (bandit) conferir que o comando do `subprocess` em `menus/screens.py:417` (botão "Editor de layout") e `tools/editor_visual.py:329` é fixo e não recebe texto digitado
+- [ ] **SEG-3** Documentar que o bind em `0.0.0.0` de `rede/anfitriao.py:77/:80` é intencional (multiplayer). `random` em `holdem/bot_ai.py` e `rede/descoberta.py:24-25` não precisa de ação
+
+### TESTE — cobertura e testes novos (hoje 58,4%, mínimo 70%)
+- [ ] **TESTE-1** Testes de `rede/` (a parte do multiplayer sem teste): `anfitriao.py` 13%, `cliente.py` 18%, `descoberta.py` 19%
+- [ ] **TESTE-2** Testes de `tools/`: `editor_visual.py` 11%, `editor_previas.py` 16%, `editor_widgets.py` 18%
+- [ ] **TESTE-3** Testes do restante abaixo da meta: `core/ui_pixelart.py` 19%, `core/chat_widget.py` 35%, `domino/mesa_remota_domino_screen.py` 46%, `main.py` 48%
+
+### QA — QA, CI e build
+- [ ] **QA-1** PRIORIDADE — `qa.toml`: adicionar `config/presets` ao `ignore_missing` em `[docs]` (pasta criada só quando o jogador salva um preset; aparece em `CLAUDE.md:51`, `lista_tarefas.md` e `tools/README.md:86`)
+- [ ] **QA-2** PRIORIDADE — qa-toolkit (`qa_toolkit/tools/docs/claims.py`): ajustar o filtro do `docs-claims` para os falsos positivos que sobraram do relatório 20261024-141413 (`tools/editor_previas.PREVIAS`, `pifpaf/domino.delay_bot_ms` e `qa_toolkit/tools/docs/claims.py`)
+- [ ] **QA-3** Rodar o `qa run` de novo depois de QA-1, QA-2 e dos bugs (último: 20261024-141413) e ver só os achados reais. Falso positivo conhecido que não precisa de ação: `call-arg` de `desenhar_glow_de_vez` (chamada com `*layout.obter(...)`)
+- [ ] **QA-4** Rodar o subagente `qa-docs` nas 551 afirmações do arquivo docs_claims da pasta do relatório e depois `qa check-citations`
+- [ ] **QA-5** `python main.py` e `tools/editor_visual.py` passaram de 20 s e foram encerrados (inconclusivo; o smoke de 120 frames passou): refazer a checagem com um critério que termine
+- [ ] **QA-6** Testes de mutação nunca rodados (`qa run --mutation` não funciona no Windows nativo, precisa de WSL)
+- [ ] **QA-7** Religar no `qa.toml` os links externos e as regras D de docstring (hoje desligados)
+- [ ] **QA-8a** Docstrings: decidir a meta (hoje 30,7%, mínimo do QA 80%, 514 itens sem docstring) e baixar `min_docstring_coverage` no `qa.toml` para um valor realista, ou ligar `docstring_rules`
+- [ ] **QA-8b** Docstrings: documentar o que é API pública (`core/`, `rede/`, lógica dos motores)
+- [ ] **CI-1** Conferir o primeiro run de `.github/workflows/ci.yml` no GitHub (só validado localmente)
+- [ ] **CI-2** Disparar manualmente o job `exe` do CI para validar o build com o `PixelPoker.spec`
+- [ ] **BUILD-1** Validar um build real do `.exe` com o `PixelPoker.spec` atualizado (embute `config/layout_padrao.json` e `config/presets_padrao/`) e abrir o jogo: não testado ainda. Este ticket também cobre o item "build do PyInstaller não executado" do QA
+
+### DOC — documentação
+- [ ] **DOC-1** PRIORIDADE — `MULTIPLAYER_PLANO.md` é citado/linkado em `README.md` (l. 21 e 105), `CLAUDE.md` (l. 53 e 79), `lista_tarefas.md` (Notas), `holdem/README.md:114`, `pifpaf/README.md:72` e `domino/README.md:104`, mas não existe: decidir entre recriar o documento ou trocar/remover a menção e o link em cada um
+- [ ] **DOC-2** PRIORIDADE — `PIF_PAF_GUIA.md` e `NOTAS_ATUALIZACAO_DOMINO.md` são citados em `CLAUDE.md:76` e não existem: trocar a menção pelos READMEs de `pifpaf/` e `domino/` (que absorveram o conteúdo) ou recriar
+- [ ] **DOC-3a** Guia + mockup do estilo Dark Glassmorphism (`design/02_dark_glassmorphism/`)
+- [ ] **DOC-3b** Guia + mockup do estilo Terminal Tático/Sci-Fi Minimal (`design/04_terminal_tatico/`)
+
+### VALID — validação manual (jogar de verdade)
+- [ ] **VALID-1** Pif Paf solo: jogar conferindo o placar de vitórias nos assentos e no selo "VOCE: n/3 VITORIAS", a tela de fim de jogo e o Joker opcional
+- [ ] **VALID-2** Pif Paf multiplayer: as mesmas conferências do VALID-1 num cliente remoto
+- [ ] **VALID-3** Carteira do Hold'em solo (`core/carteira.py`): conferir que o saldo persiste entre sessões, que perder tudo bloqueia o "Iniciar Partida" por 12 h (aviso na tela de Configuração) e que fechar a janela no meio da mão salva o saldo sem a aposta
+- [ ] **VALID-4** Revisão visual do redesign Pixel Art Retrô CRT rodando `python main.py`: hover/clique dos botões, slider de raise, drag-and-drop do Dominó e skin "Dark" (só validado por render headless)
+- [ ] **VALID-5** Conferir no seletor de setas da tela de Configuração as 8 skins novas do baralho (nenhuma recapturada em uso real)
+- [ ] **VALID-6** Espectador de Hold'em: testar o modo em partida multiplayer real (só validado por render headless do host)
+- [ ] **VALID-7** Design Geral: revisar o layout em janelas muito pequenas com 8 jogadores (selo SB/BB pode encostar na borda superior)
+- [ ] **VALID-8** Editor visual de layout: uso real com mouse e teclado de verdade (só testado com eventos simulados + abertura da janela sem interação)
+
+### REDE — multiplayer local
+- [ ] **REDE-1** Testar com duas máquinas físicas reais na mesma Wi-Fi (só validado via 127.0.0.1)
+- [ ] **REDE-2** Reconexão após queda de um cliente
+- [ ] **REDE-3** Revelar as cartas de todos no showdown para os clientes remotos
+- [ ] **REDE-4** Chat de voz (hoje só há chat de texto)
+
+### UI — visual e interface
+- [ ] **UI-1** Tela de Ajustes: o subtítulo "Valem a partir da próxima partida iniciada" fica escondido atrás do painel (desenhado depois, em 800px de altura); já era assim
+- [ ] **UI-2** Cores: trocar as chamadas com `cor_texto=SOMBRA/INK` fixo (selos como "POTE", "Apostou 20") por `cor_texto_sobre(fundo)` para acompanhar paletas editadas
+- [ ] **UI-3** Desenho do Baralho: refinar a carta "padrão"/"Dark" (`desenhar_carta` em `ui_theme.py`) — naipes, tipografia dos números, verso
+- [ ] **UI-4** Editor visual: arrastar para redimensionar direto na prévia (alças nos cantos da carta), opcional da Fase 4
+- [ ] **UI-5a** Editor visual: abrir como tela dentro do jogo em vez de processo separado (opcional da Fase 5)
+- [ ] **UI-5b** Editor visual: disponibilizá-lo no `.exe` (hoje o build não leva `tools/`)
+
+### NOVO — funcionalidades novas
+- [ ] **NOVO-1a** Ferramenta de criação de baralhos (modo admin/editor): definir o formato de salvamento do baralho personalizado
+- [ ] **NOVO-1b** Ferramenta de criação de baralhos: seção visual/guiada para criar e salvar baralhos
+- [ ] **NOVO-2a** Novo modo de jogo: escolher o modo inédito e escrever as regras no README
+- [ ] **NOVO-2b** Novo modo de jogo: implementar o motor e a tela no card "EM BREVE" já reservado na escolha de modo
 
 ## Concluído
-- [x] **Suíte de testes automáticos** (`tests/`, 297 testes: 279 passam e 18 são falhas conhecidas `xfail` = os bugs acima): regras dos três modos escritas a partir dos READMEs (Hold'em: avaliador, apostas, potes, fluxo, bots, carteira; Pif Paf: combinações, mesa, bots; Dominó: peças, jogadas, pontuação, bots), validação das ações remotas pelo host nos três modos, estrutura (layout, rede, módulos, telas em 1280x800 e 1024x768 incluindo o cliente remoto alimentado pelo estado real do host, os 10 baralhos, salas de espera) e simulações de partidas completas só de bots com invariantes (fichas, cartas e peças conservadas) + Hypothesis. Os testes nunca tocam no `config/layout.json` nem no `config/carteira.json` reais. Documentação em `tests/README.md` e `tests/REQUISITOS.md`; `pytest.ini`, `requirements-dev.txt` e `.github/workflows/ci.yml` (jobs rápido, completo, windows e exe manual); `CLAUDE.md` atualizado. Rodar: `pytest -m "not lento"` (≈3 s) e `pytest -m lento` (≈10 s)
+- [x] **Suíte de testes automáticos** (`tests/`, 331 testes: 308 passam e 23 são falhas conhecidas `xfail` = os bugs acima): regras dos três modos escritas a partir dos READMEs (Hold'em: avaliador, apostas, potes, fluxo, bots, carteira; Pif Paf: combinações, mesa, bots; Dominó: peças, jogadas, pontuação, bots), validação das ações remotas pelo host nos três modos, estrutura (layout, rede, módulos, telas em 1280x800 e 1024x768 incluindo o cliente remoto alimentado pelo estado real do host, os 10 baralhos, salas de espera) e simulações de partidas completas só de bots com invariantes (fichas, cartas e peças conservadas) + Hypothesis. Os testes nunca tocam no `config/layout.json` nem no `config/carteira.json` reais. Documentação em `tests/README.md` e `tests/REQUISITOS.md`; `pytest.ini`, `requirements-dev.txt` e `.github/workflows/ci.yml` (jobs rápido, completo, windows e exe manual); `CLAUDE.md` atualizado. Rodar: `pytest -m "not lento"` (≈3 s) e `pytest -m lento` (≈10 s)
 - [x] Pif Paf sem fichas (vence quem chegar a 3 vitórias de mão) e sem coringa da vira (só o Joker impresso opcional); docs atualizadas (README, pifpaf/README.md)
 - [x] Carteira de fichas persistente no Hold'em solo: o saldo fica em `config/carteira.json` (fora do git), o jogador entra com tudo e o que sobra volta; ao zerar, 12 h de espera e reposição de 2000
 - [x] **Editor visual de layout — Fase 5**: (1) recarga no jogo sem reiniciar — **F5** em qualquer tela, e o jogo confere `config/layout.json` uma vez por segundo e recarrega sozinho quando ele muda (ex.: o editor salvou), com um aviso por 2,5 s no canto inferior esquerdo (`App.recarregar_layout`/`_vigiar_layout` em `main.py`; fichas iniciais só acompanham se o jogador não mexeu nelas na sessão); (2) presets em `core/layout.py` (`listar_presets`/`carregar_preset`/`salvar_preset`/`aplicar_ajustes`): dois vêm com o jogo em `config/presets_padrao/` — "compacto" (sem nenhum alerta do detector em nenhuma combinação) e "grande" (sem alertas a partir de 1600x900, o público dele) — e os do jogador ficam em `config/presets/` (fora do git); no editor, botão Presets abre a janela com Aplicar, salvar o atual com um nome e Abrir pasta (exportar/importar = copiar o .json de/pra lá); (3) botão "Editor de layout" na tela de Ajustes, que abre o editor em outro processo (só rodando pelo código-fonte; não abre duas cópias); `PixelPoker.spec`, `.gitignore`, README, CLAUDE.md e `tools/README.md` atualizados. Verificado: 33 checagens headless novas (presets, F5, recarga automática, fichas, aviso, botão dos Ajustes com processo simulado, janela de presets), todas as das fases anteriores, mesas idênticas à referência e só a tela de Ajustes diferente nos menus, mapa de alertas zerado, editor e jogo abrindo em janela real
@@ -65,6 +126,11 @@ bloqueios:
 - [x] Ajustes de UI (Mesa e Menu) e correção do bug grave do Esc fechando o jogo em qualquer tela
 - [x] Multiplayer Local (Rede): salas host-autoritativo, descoberta UDP, chat de texto, robustez básica (sala cheia, desconexão, encerramento)
 - [x] Documentação do Projeto: README unificado com o antigo GDD, README por modo (`holdem/`, `pifpaf/`, `domino/`) e de `tools/`, guias técnicos e mockups HTML das estéticas visuais
+- [x] QA: no `qa.toml` colocar `tests = ["tests"]` e apontar `docs.files` só para os `.md` que existem — o `qa run` de 24/10 analisou 20 arquivos de teste e 9 de documentação
+- [x] Pif Paf: o texto "DESCARTAR" ficava por baixo do selo de atalho "ENTER" — corrigido: padrão de `pifpaf.botao_jogada` passou de 150 para 230px (a conta com a fonte e o selo reais dá 220px no mínimo; o rótulo do item no editor avisa)
+- [x] Dominó, sem jogada: as peças da mão ficavam por cima do botão "Passar" e do texto de dica — corrigido: o "Passar" vai ao lado da mão (`domino_screen.posicionar_botao_passar`, usada também pelo cliente remoto) e a dica fica embaixo da mão
+- [x] Dominó com 4 jogadores: o painel do assento de cima saía pela borda superior — corrigido: feltro centrado em 44% da altura (era 36%) e assentos da metade de cima a 36px do feltro (eram 70), constantes `CENTRO_MESA_Y`/`FOLGA_ASSENTO_*` em `domino_screen.py`, importadas pelo cliente remoto
+- [x] Hold'em com 8 jogadores: as cartas do vizinho da esquerda invadiam o painel "Você" — corrigido (ângulos refinados de novo na correção das janelas menores); host e cliente remoto
 
 ## Notas
 Histórico completo (decisões técnicas, bugs corrigidos e o racional de cada mudança) preservado no `README.md`, nos READMEs de cada modo (`holdem/`, `pifpaf/`, `domino/`), em `tools/README.md` e no `MULTIPLAYER_PLANO.md` — este arquivo é só o resumo de estado/tarefas para o painel.

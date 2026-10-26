@@ -13,7 +13,7 @@ pip install pygame
 python main.py
 ```
 
-`pygame` is the only runtime dependency. There is an automated test suite in `tests/` (297 tests, headless, ~10 s; see `tests/README.md`, requirements in `tests/REQUISITOS.md`):
+`pygame` is the only runtime dependency. There is an automated test suite in `tests/` (331 tests, headless, ~15 s; see `tests/README.md`, requirements in `tests/REQUISITOS.md`):
 
 ```bash
 pip install -r requirements-dev.txt

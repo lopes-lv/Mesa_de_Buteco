@@ -106,11 +106,6 @@ def test_hp_09_se_todos_desistem_menos_um_ele_leva_tudo_sem_mostrar_a_mao():
     assert resultado[0]["vencedores"] == ["J0"]
 
 
-@pytest.mark.xfail(reason="BUG: processar_showdown usa o id do jogador como posição do assento "
-                          "(ordem_a_partir_sb.index(pid)) e levanta ValueError se os ids não forem "
-                          "0..n-1. No multiplayer o anfitrião nunca reutiliza ids (_proximo_id só "
-                          "cresce): se alguém sai do lobby e outro entra, os ids ficam 0,2 e o "
-                          "showdown do Hold'em quebra.")
 def test_hp_10_o_showdown_funciona_com_ids_que_nao_sao_a_posicao_do_assento():
     mesa, j = mesa_no_showdown(["Ac Ao", "2c 7o", "3c 8o"], "Kc 7p 9p 2e 3o",
                                apostado=[100, 100, 100], ids=[3, 7, 9])

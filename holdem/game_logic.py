@@ -184,7 +184,8 @@ class Table:
         return ESTRUTURA_BLINDS[idx]
 
     def atualizar_nivel_blind(self):
-        self.nivel_blind_idx = self.mao_numero // MAOS_POR_NIVEL
+        # mao_numero já conta a mão que vai começar (1ª mão = 1), por isso o -1
+        self.nivel_blind_idx = max(0, self.mao_numero - 1) // MAOS_POR_NIVEL
         self.nivel_blind_idx = min(self.nivel_blind_idx, len(ESTRUTURA_BLINDS) - 1)
 
     # ---------- Fluxo de uma mão ----------
@@ -294,13 +295,16 @@ class Table:
                 continue
             vencedores_ids = determinar_vencedores(sub_avaliacoes)
             
+            # ordem_assentos/dealer_idx são posições em self.jogadores; os
+            # vencedores vêm como ids de jogador (que no multiplayer não
+            # coincidem com a posição) - converte antes de ordenar.
             ordem_a_partir_sb = []
-            idx = self.dealer_idx
             n_assentos = len(self.ordem_assentos)
+            pos_dealer = self.ordem_assentos.index(self.dealer_idx)
             for offset in range(1, n_assentos + 1):
-                pos = (self.ordem_assentos.index(idx) + offset) % n_assentos
-                ordem_a_partir_sb.append(self.ordem_assentos[pos])
-            
+                assento = self.ordem_assentos[(pos_dealer + offset) % n_assentos]
+                ordem_a_partir_sb.append(self.jogadores[assento].id)
+
             vencedores_ordenados = sorted(vencedores_ids, key=lambda pid: ordem_a_partir_sb.index(pid))
             
             divisao = pote["valor"] // len(vencedores_ordenados)

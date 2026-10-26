@@ -1,4 +1,4 @@
-pygame
+-r requirements.txt
 pytest
 pytest-timeout
 hypothesis

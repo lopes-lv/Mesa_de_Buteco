@@ -86,7 +86,7 @@ def segundos_para_reposicao():
 
 def registrar(novo_saldo):
     """Grava o saldo depois de uma mão/partida; ao zerar, começa a espera."""
-    dados = {"saldo": max(0, int(novo_saldo)), "zerou_em": None}
+    dados: dict[str, float | None] = {"saldo": max(0, int(novo_saldo)), "zerou_em": None}
     if dados["saldo"] == 0:
         anterior = _ler()
         dados["zerou_em"] = anterior["zerou_em"] if anterior["saldo"] == 0 and anterior["zerou_em"] else time.time()

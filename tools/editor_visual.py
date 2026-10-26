@@ -110,7 +110,7 @@ class LinhaItem:
         x = rect.right - 10 - self.botao_padrao.width
         self.botao_padrao.topleft = (x, y)
         x -= 14
-        if self.eh_cor:
+        if self.campo_hex is not None:  # só as linhas de cor têm campo hexadecimal
             self.campo_hex.rect.topright = (x, y)
             self.amostra.topright = (self.campo_hex.rect.left - 8, y)
             return

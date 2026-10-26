@@ -172,7 +172,8 @@ class PifPafTableScreen:
     # ---------------------------------------------------------------- Rede (host)
     def _enviar_chat_host(self, texto):
         nome = self.sala_rede.nome_anfitriao
-        self.chat.adicionar_mensagem(nome, texto)
+        if self.chat is not None:
+            self.chat.adicionar_mensagem(nome, texto)
         self.sala_rede.enviar_para_todos({"tipo": protocolo.CHAT, "remetente": nome, "texto": texto})
 
     def _enviar_maos_privadas(self):
@@ -236,7 +237,7 @@ class PifPafTableScreen:
             tipo = msg.get("tipo")
             if tipo == protocolo.ACAO_PIFPAF:
                 self._processar_acao_remota(jogador_id, msg)
-            elif tipo == protocolo.CHAT:
+            elif tipo == protocolo.CHAT and self.chat is not None:
                 self.chat.adicionar_mensagem(msg.get("remetente", "?"), msg.get("texto", ""))
 
     def _processar_acao_remota(self, jogador_id, msg):
