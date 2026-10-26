@@ -20,8 +20,9 @@ import random
 from collections import deque
 
 import pygame
+from core.ui_theme import tamanho_janela
 from core.ui_theme import (
-    BG, PANEL, INK, SOMBRA, FELT, FELT_DARK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar, desenhar_mesa,
     desenhar_badge, desenhar_glow_de_vez,
 )
@@ -116,7 +117,7 @@ class DominoTableScreen:
         self.botao_passar = pygame.Rect(0, 0, 0, 0)
         self._dimensionar_botoes()
 
-        self.historico = deque(maxlen=1)
+        self.historico: deque = deque(maxlen=1)
         self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
         self._iniciar_mao()
 
@@ -417,7 +418,7 @@ class DominoTableScreen:
 
     # ---------------------------------------------------------------- Desenho
     def _mesa_rect(self):
-        largura, altura = pygame.display.get_surface().get_size()
+        largura, altura = tamanho_janela()
         mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
         mesa_rect.center = (largura // 2, int(altura * CENTRO_MESA_Y))
         return mesa_rect
@@ -736,7 +737,7 @@ class DominoTableScreen:
         espaco = layout.obter("domino.espaco_mao")
         n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
-        largura_tela, altura_tela = pygame.display.get_surface().get_size()
+        largura_tela, altura_tela = tamanho_janela()
         x0 = largura_tela // 2 - total_largura // 2
         y0 = altura_tela - altura_peca - 40
         pares = []

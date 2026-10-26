@@ -33,7 +33,7 @@ def test_el_01_todo_item_do_padrao_esta_dentro_da_propria_faixa():
         meta = layout.metadados(chave)
         valor, minimo, maximo = meta["valor"], meta.get("min"), meta.get("max")
         assert valor is not None, chave
-        itens = list(zip(valor, minimo, maximo)) if isinstance(valor, list) else [(valor, minimo, maximo)]
+        itens = list(zip(valor, minimo, maximo, strict=True)) if isinstance(valor, list) else [(valor, minimo, maximo)]
         for v, lo, hi in itens:
             if lo is not None:
                 assert v >= lo, f"{chave}: {v} < min {lo}"

@@ -9,13 +9,14 @@ em vez de aplicar localmente.
 """
 import math
 import queue
+from typing import Any
 
 import pygame
 from core.deck import Card
 from core.ui_theme import (
     BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta, desenhar_carta_vazia,
-    desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
+    desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
     desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie, desenhar_mesa_oval_recorte,
 )
 from core.chat_widget import ChatWidget
@@ -107,7 +108,7 @@ class MesaRemotaScreen:
         self.sala = sala_cliente
         self.meu_id = sala_cliente.meu_id
 
-        self.estado = None
+        self.estado: Any = None
         self.minha_mao = []
         self.maos_espectador = {}  # id (str) -> cartas de todos, só quando fold/eliminado
         self.tempo_decorrido = 0.0
@@ -632,7 +633,8 @@ class MesaRemotaScreen:
         pygame.draw.rect(tela, MINT, self.slider_alca, border_radius=0)
         pygame.draw.rect(tela, INK, self.slider_alca, 2, border_radius=0)
 
-        desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED, familia="mono")
+        desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED,
+                       familia="mono")
         desenhar_texto(tela, f"{maximo} (all-in)", self.slider_rect.right, self.slider_rect.y + 22,
                         tamanho=12, cor=TEXT_MUTED, familia="mono")
 

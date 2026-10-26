@@ -16,7 +16,7 @@ import pygame
 from core.ui_theme import (
     BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta, desenhar_carta_vazia,
-    desenhar_mesa, desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
+    desenhar_pilha_fichas, desenhar_avatar, desenhar_badge,
     desenhar_kbd, desenhar_glow_de_vez, desenhar_cropie, desenhar_mesa_oval_recorte,
 )
 from .bot_ai import decidir_acao_bot
@@ -104,7 +104,7 @@ class TableScreen:
 
         self.anim_cropie_inicio = None  # instante (tempo_decorrido) em que a última distribuição começou
 
-        self.historico = deque(maxlen=HIST_MAX_LINHAS)
+        self.historico: deque = deque(maxlen=HIST_MAX_LINHAS)
         self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
         self._iniciar_mao()
 
@@ -692,7 +692,8 @@ class TableScreen:
             total_largura = 2 * largura_carta + espaco_cartas
 
             if eh_humano:
-                self._desenhar_painel_humano(tela, jogador, x, y, largura_carta, altura_carta, total_largura, selo_posicao)
+                self._desenhar_painel_humano(tela, jogador, x, y, largura_carta, altura_carta, total_largura,
+                                             selo_posicao)
             else:
                 self._desenhar_painel_bot(tela, jogador, x, y, altura_carta, eh_vez_dele, selo_posicao)
 
@@ -742,7 +743,8 @@ class TableScreen:
             desenhar_badge(tela, painel.right, painel.top, texto_selo, cor_selo,
                             cor_texto=INK, tamanho_fonte=9, ancorar="center", borda=INK)
 
-    def _desenhar_painel_humano(self, tela, jogador, x, y, largura_carta, altura_carta, total_largura, selo_posicao=None):
+    def _desenhar_painel_humano(self, tela, jogador, x, y, largura_carta, altura_carta, total_largura,
+                                selo_posicao=None):
         painel_w, painel_h = 176, 68
         painel = pygame.Rect(0, 0, painel_w, painel_h)
         painel.right = x - total_largura // 2 - 26
@@ -904,7 +906,8 @@ class TableScreen:
         pygame.draw.rect(tela, MINT, self.slider_alca, border_radius=0)
         pygame.draw.rect(tela, INK, self.slider_alca, 2, border_radius=0)
 
-        desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED, familia="mono")
+        desenhar_texto(tela, "1", self.slider_rect.x, self.slider_rect.y + 22, tamanho=12, cor=TEXT_MUTED,
+                       familia="mono")
         desenhar_texto(tela, f"{maximo} (all-in)", self.slider_rect.right, self.slider_rect.y + 22,
                         tamanho=12, cor=TEXT_MUTED, familia="mono")
 

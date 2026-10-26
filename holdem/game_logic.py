@@ -7,6 +7,8 @@ Contém:
  - Table: orquestra uma mão completa (blinds -> preflop -> flop -> turn -> river -> showdown)
  - Cálculo de pote principal + side pots (para all-ins) e split pot em empates
 """
+from typing import Any
+
 from core.deck import Deck
 from .hand_evaluator import melhor_mao, determinar_vencedores
 
@@ -150,7 +152,7 @@ def calcular_potes(jogadores):
         nivel_anterior = nivel
 
     # funde potes consecutivos com exatamente os mesmos elegíveis
-    potes_fundidos = []
+    potes_fundidos: list = []
     for p in potes:
         if potes_fundidos and potes_fundidos[-1]["elegiveis"] == p["elegiveis"]:
             potes_fundidos[-1]["valor"] += p["valor"]
@@ -164,9 +166,8 @@ class Table:
         self.jogadores = jogadores  # lista de Player, ordem de assento fixa
         self.ordem_assentos = self._criar_ordem_assentos(len(jogadores))
         self.dealer_idx = self.ordem_assentos[-1]
-        self.deck = None
+        self.deck: Any = None
         self.comunitarias = []
-        self.pote_total = 0
         self.estagio = "preflop"
         self.mao_numero = 0
         self.nivel_blind_idx = 0
@@ -294,7 +295,7 @@ class Table:
             if not sub_avaliacoes:
                 continue
             vencedores_ids = determinar_vencedores(sub_avaliacoes)
-            
+
             # ordem_assentos/dealer_idx são posições em self.jogadores; os
             # vencedores vêm como ids de jogador (que no multiplayer não
             # coincidem com a posição) - converte antes de ordenar.
@@ -306,7 +307,7 @@ class Table:
                 ordem_a_partir_sb.append(self.jogadores[assento].id)
 
             vencedores_ordenados = sorted(vencedores_ids, key=lambda pid: ordem_a_partir_sb.index(pid))
-            
+
             divisao = pote["valor"] // len(vencedores_ordenados)
             resto = pote["valor"] % len(vencedores_ordenados)
             nomes_vencedores = []

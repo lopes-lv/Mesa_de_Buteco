@@ -2,7 +2,6 @@
 "Blinds" e "Eliminação e espectador")."""
 import inspect
 
-import pytest
 
 from holdem import game_logic
 from holdem.game_logic import ESTRUTURA_BLINDS, MAOS_POR_NIVEL, BettingRound, Player, Table

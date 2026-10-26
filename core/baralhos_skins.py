@@ -37,7 +37,7 @@ import pygame
 #               | circulo | moldura | neon
 #   padrao_cor  cor do padrão do verso
 #   vazia       cor do contorno tracejado do "espaço de carta" vazio
-SKINS = {
+SKINS: dict[str, dict] = {
     "dark_glass": dict(
         nome="Dark Glass", face=(232, 236, 255), borda=(255, 255, 255, 140), borda_w=1.5, raio=12,
         sombra=(0, 4, (0, 0, 0, 90)), glow=None, tinta=(20, 23, 46), vermelho=(226, 61, 107),
@@ -91,8 +91,8 @@ FONTES = {
 }
 
 # ------------------------------------------------------------------ cache
-_fontes = {}
-_cache = {}
+_fontes: dict = {}
+_cache: dict = {}
 
 
 def _fonte(familia, tamanho):
@@ -128,13 +128,15 @@ def desenhar_naipe(s, simbolo, cx, cy, t, cor):
         pygame.draw.circle(s, cor, (cx, cy - r * 1.1), r)
         pygame.draw.circle(s, cor, (cx - r * 1.15, cy + r * 0.55), r)
         pygame.draw.circle(s, cor, (cx + r * 1.15, cy + r * 0.55), r)
-        pygame.draw.polygon(s, cor, [(cx - t * 0.07, cy + r * 0.4), (cx + t * 0.07, cy + r * 0.4), (cx + t * 0.16, cy + t * 0.5), (cx - t * 0.16, cy + t * 0.5)])
+        pygame.draw.polygon(s, cor, [(cx - t * 0.07, cy + r * 0.4), (cx + t * 0.07, cy + r * 0.4),
+                                     (cx + t * 0.16, cy + t * 0.5), (cx - t * 0.16, cy + t * 0.5)])
     elif simbolo == "S":
         r = t * 0.27
         pygame.draw.circle(s, cor, (cx - r, cy + r * 0.2), r)
         pygame.draw.circle(s, cor, (cx + r, cy + r * 0.2), r)
         pygame.draw.polygon(s, cor, [(cx, cy - t * 0.5), (cx + r * 1.93, cy + r * 0.1), (cx - r * 1.93, cy + r * 0.1)])
-        pygame.draw.polygon(s, cor, [(cx - t * 0.07, cy + r * 0.4), (cx + t * 0.07, cy + r * 0.4), (cx + t * 0.16, cy + t * 0.5), (cx - t * 0.16, cy + t * 0.5)])
+        pygame.draw.polygon(s, cor, [(cx - t * 0.07, cy + r * 0.4), (cx + t * 0.07, cy + r * 0.4),
+                                     (cx + t * 0.16, cy + t * 0.5), (cx - t * 0.16, cy + t * 0.5)])
     else:  # coringa
         pts = []
         for i in range(10):
@@ -170,7 +172,8 @@ def _padrao_verso(s, sk, rect, k):
     elif p == "moldura":
         pygame.draw.rect(tmp, cor, ir, width=max(1, int(k * 1.5)), border_radius=int(6 * k))
         d = min(ir.w, ir.h) * 0.22
-        pygame.draw.polygon(tmp, cor, [(cx, cy - d), (cx + d, cy), (cx, cy + d), (cx - d, cy)], width=max(1, int(k * 1.5)))
+        pygame.draw.polygon(tmp, cor, [(cx, cy - d), (cx + d, cy), (cx, cy + d), (cx - d, cy)],
+                            width=max(1, int(k * 1.5)))
     elif p == "rede":
         pygame.draw.rect(tmp, cor, ir, width=max(1, int(k)))
         passo = max(5, int(9 * k))
@@ -208,7 +211,7 @@ def _padrao_verso(s, sk, rect, k):
 
 
 # ------------------------------------------------------------------ carta
-def _renderizar(skin_id, w, h, chave_carta, verso, destaque, vazia, carta):
+def _renderizar(skin_id, w, h, verso, destaque, vazia, carta):
     sk = SKINS[skin_id]
     k = w / 64.0
     raio = int(sk["raio"] * k)
@@ -235,7 +238,8 @@ def _renderizar(skin_id, w, h, chave_carta, verso, destaque, vazia, carta):
         g = _rgba(sk["glow"])
         for i in range(4, 0, -1):
             gl = pygame.Surface(s.get_size(), pygame.SRCALPHA)
-            pygame.draw.rect(gl, (*g[:3], max(8, g[3] // (i + 1))), rect.inflate(i * 4 * k, i * 4 * k), border_radius=raio + i * 2)
+            pygame.draw.rect(gl, (*g[:3], max(8, g[3] // (i + 1))), rect.inflate(i * 4 * k, i * 4 * k),
+                             border_radius=raio + i * 2)
             s.blit(gl, (0, 0))
     if sk["sombra"]:
         dx, dy, cor = sk["sombra"]
@@ -282,7 +286,7 @@ def desenhar_carta_skin(tela, skin_id, x, y, largura, altura, carta=None,
     if surf is None:
         if len(_cache) > 400:
             _cache.clear()
-        surf = _cache[chave] = _renderizar(skin_id, largura, altura, chave[3], verso, destaque, vazia, carta)
+        surf = _cache[chave] = _renderizar(skin_id, largura, altura, verso, destaque, vazia, carta)
     margem = (surf.get_width() - largura) // 2
     tela.blit(surf, (x - margem, y - margem))
     return pygame.Rect(x, y, largura, altura)

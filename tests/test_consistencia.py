@@ -221,8 +221,8 @@ def test_cn_09_divida_tipos_de_jogador_definidos_num_lugar_so(nome):
 
 @pytest.mark.xfail(reason="DÍVIDA: o Hold'em duplica as constantes e a geometria entre table_screen.py e "
                           "mesa_remota_screen.py (HIST_*, ANIM_CROUPIER_DURACAO, VAO_PAINEL_CARTAS_BOT, "
-                          "NAIPE_UNICODE, PALETA_AVATAR, LIMIAR_ARRASTO_PX). Pif Paf e Dominó já importam a geometria do "
-                          "host, mas PALETA_AVATAR existe em 6 telas.")
+                          "NAIPE_UNICODE, PALETA_AVATAR, LIMIAR_ARRASTO_PX). Pif Paf e Dominó já importam a "
+                          "geometria do host, mas PALETA_AVATAR existe em 6 telas.")
 def test_cn_10_divida_constantes_de_tela_definidas_num_lugar_so():
     repetidas = {n: sorted({c for c, _ in d}) for n, d in _constantes().items() if len({c for c, _ in d}) > 1}
     assert not repetidas, f"constantes em mais de um módulo: {repetidas}"

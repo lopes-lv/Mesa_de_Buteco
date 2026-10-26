@@ -53,7 +53,6 @@ _PALETA = {
 }
 
 # Compatibilidade com nomes antigos usados em outros módulos.
-COR_FUNDO = BG
 COR_TEXTO = INK
 
 CHIP_CORES = [YELLOW, BLUE, MINT, CORAL, PURPLE]
@@ -114,7 +113,7 @@ FAMILIAS = {
     "mono": ["Consolas", "Courier New", "DejaVu Sans Mono"],
 }
 
-_fonte_cache = {}
+_fonte_cache: dict = {}
 
 
 def obter_fonte(tamanho, negrito=False, familia="body"):
@@ -472,6 +471,13 @@ def desenhar_cropie(tela, cx, cy, progresso=0.0):
     viseira.midbottom = (cx, cy + r_cabeca - 1)
     pygame.draw.rect(tela, MINT, viseira)
     pygame.draw.rect(tela, SOMBRA, viseira, width=2)
+
+
+def tamanho_janela():
+    """(largura, altura) da janela do jogo."""
+    superficie = pygame.display.get_surface()
+    assert superficie is not None, "pygame.display.set_mode ainda não foi chamado"
+    return superficie.get_size()
 
 
 def desenhar_glow_de_vez(tela, x, y, largura_carta, altura_carta, tempo):

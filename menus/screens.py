@@ -5,6 +5,7 @@ A tela de Mesa/Gameplay fica em table_screen.py por ser mais extensa.
 import os
 import subprocess
 import sys
+from typing import Any
 
 import pygame
 from core.ui_theme import (
@@ -120,7 +121,7 @@ class MenuScreen:
 class ModeSelectScreen:
     """Tela de Escolha de Modo: Texas Hold'em, Pif Paf ou modos futuros."""
 
-    MODOS = [
+    MODOS: list[dict[str, Any]] = [
         {"id": "holdem", "titulo": "TEXAS HOLD'EM", "subtitulo": "No-Limit, torneio contra bots",
          "simbolo": "♠", "ativo": True},
         {"id": "pifpaf", "titulo": "PIF PAF", "subtitulo": "Compra, descarte e batida",
@@ -141,7 +142,7 @@ class ModeSelectScreen:
             if self.botao_voltar.collidepoint(evento.pos):
                 self.app.ir_para_menu()
                 return
-            for rect, modo in zip(self.cartoes, self.MODOS):
+            for rect, modo in zip(self.cartoes, self.MODOS, strict=True):
                 if modo["ativo"] and rect.collidepoint(evento.pos):
                     self.app.ir_para_config(modo["id"])
         elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
@@ -164,7 +165,7 @@ class ModeSelectScreen:
         x0 = largura // 2 - total_largura // 2
         y0 = altura // 2 - self.cartoes[0].height // 2
 
-        for i, (rect, modo) in enumerate(zip(self.cartoes, self.MODOS)):
+        for i, (rect, modo) in enumerate(zip(self.cartoes, self.MODOS, strict=True)):
             rect.topleft = (x0 + i * (rect.width + espaco), y0)
             hover = modo["ativo"] and rect.collidepoint(mouse_pos)
             cor_fundo = PANEL if modo["ativo"] else LOCKED

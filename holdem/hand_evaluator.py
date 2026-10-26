@@ -7,6 +7,7 @@ operadores Python (>, <, ==) e resolver empates / split pots com
 exatidão, pois duas tuplas iguais significam mãos empatadas.
 """
 from itertools import combinations
+from typing import Any
 from collections import Counter
 
 NOME_CATEGORIA = {
@@ -71,7 +72,7 @@ def melhor_mao(cartas_totais):
     Recebe uma lista com as cartas do jogador + cartas comunitárias
     (normalmente 7 cartas) e retorna (forca, categoria_nome, melhores_5_cartas).
     """
-    melhor_forca = None
+    melhor_forca: Any = None
     melhores_cartas = None
     for combo in combinations(cartas_totais, 5):
         forca = _avaliar_5_cartas(combo)

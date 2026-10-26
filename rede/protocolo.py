@@ -25,9 +25,13 @@ INICIAR_PARTIDA = "iniciar_partida"    # host -> todos: {}
 ESTADO = "estado"                 # host -> todos: snapshot publico da mesa
 SUA_MAO = "sua_mao"               # host -> 1 cliente: {cartas: [...]}
 ACAO = "acao"                     # cliente -> host: {acao, valor} (Hold'em: fold/check/call/raise)
-ACAO_PIFPAF = "acao_pifpaf"       # cliente -> host: {acao, carta?} (comprar_monte/comprar_descarte/bater/bater_mao_fechada/descartar)
-ACAO_DOMINO = "acao_domino"       # cliente -> host: {acao: "jogar", peca: [a,b], lado} ou {acao: "passar"} - lado é esquerda/direita/cima/baixo (cima/baixo só existem com spinner/bucho, ver domino_logic.DIRECOES); sem monte/compra, passar é decisão do jogador
-MAOS_ESPECTADOR = "maos_espectador"  # host -> 1 cliente (Hold'em, so quem deu fold/foi eliminado): {maos: {id: [[valor, naipe], ...]}}
+# cliente -> host: {acao, carta?} (comprar_monte/comprar_descarte/bater/bater_mao_fechada/descartar)
+ACAO_PIFPAF = "acao_pifpaf"
+# cliente -> host: {acao: "jogar", peca: [a,b], lado} ou {acao: "passar"} - lado é esquerda/direita/cima/baixo
+# (cima/baixo só existem com spinner/bucho, ver domino_logic.DIRECOES); sem monte/compra, passar é decisão do jogador
+ACAO_DOMINO = "acao_domino"
+# host -> 1 cliente (Hold'em, so quem deu fold/foi eliminado): {maos: {id: [[valor, naipe], ...]}}
+MAOS_ESPECTADOR = "maos_espectador"
 ERRO_ACAO = "erro_acao"           # host -> 1 cliente: {motivo}
 SAIR = "sair"                     # qualquer -> outro lado
 SALA_ENCERRADA = "sala_encerrada"      # host -> todos: {motivo}

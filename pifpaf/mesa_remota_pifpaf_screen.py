@@ -11,13 +11,14 @@ recalculadas localmente com as mesmas funções puras de `pifpaf_logic.py`
 (operam só sobre a própria mão, já que o coringa é sempre o Joker impresso) -
 evita duplicar a regra e evita ida-e-volta de rede a cada carta selecionada.
 """
-import math
 import queue
+from typing import Any
 
 import pygame
+from core.ui_theme import tamanho_janela
 from core.deck import Card
 from core.ui_theme import (
-    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez,
@@ -57,10 +58,10 @@ class MesaRemotaPifPafScreen:
         self.sala = sala_cliente
         self.meu_id = sala_cliente.meu_id
 
-        self.estado = None
+        self.estado: Any = None
         self.minha_mao = []  # lista de [valor, naipe]
         self.carta_selecionada = None
-        self.arraste = None
+        self.arraste: Any = None
         self.tempo_decorrido = 0.0
 
         self.erro_acao = None
@@ -219,7 +220,7 @@ class MesaRemotaPifPafScreen:
         espaco = layout.obter("pifpaf.espaco_mao")
         n = len(self.minha_mao)
         total_largura = n * largura_carta + (n - 1) * espaco
-        largura_tela, altura_tela = pygame.display.get_surface().get_size()
+        largura_tela, altura_tela = tamanho_janela()
         x0 = largura_tela // 2 - total_largura // 2
         y0 = topo_da_mao(largura_tela, altura_tela, altura_carta)
         pares = []
@@ -230,7 +231,7 @@ class MesaRemotaPifPafScreen:
 
     def _tratar_evento_mao(self, evento):
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-            for i, (rect, carta) in enumerate(self._rects_mao()):
+            for i, (rect, _carta) in enumerate(self._rects_mao()):
                 if rect.collidepoint(evento.pos):
                     self.arraste = {"indice": i, "inicio": evento.pos, "pos": evento.pos, "moveu": False}
                     return True
@@ -404,7 +405,8 @@ class MesaRemotaPifPafScreen:
             painel.centery = y
 
             if eh_vez_dele:
-                desenhar_glow_de_vez(tela, x, y, *layout.obter("pifpaf.carta_oponente"), self.tempo_decorrido)
+                largura_op, altura_op = layout.obter("pifpaf.carta_oponente")
+                desenhar_glow_de_vez(tela, x, y, largura_op, altura_op, self.tempo_decorrido)
 
             desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
@@ -562,7 +564,8 @@ class MesaRemotaPifPafScreen:
 
             desenhar_botao(tela, self.botao_descarte, "Comprar Descarte",
                             hover=self.botao_descarte.collidepoint(mouse_pos), tamanho_fonte=16, cor=MINT)
-            desenhar_kbd(tela, self.botao_descarte.right - 14, self.botao_descarte.bottom - 14, "D", ancorar="bottomright")
+            desenhar_kbd(tela, self.botao_descarte.right - 14, self.botao_descarte.bottom - 14, "D",
+                         ancorar="bottomright")
             return
 
         pode_bater = self._pode_bater()
@@ -587,7 +590,8 @@ class MesaRemotaPifPafScreen:
             desenhar_botao(tela, self.botao_descartar, "Descartar", ativo=pode_descartar,
                             hover=pode_descartar and self.botao_descartar.collidepoint(mouse_pos),
                             tamanho_fonte=18, cor=CORAL, cor_texto=INK)
-        desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter", ancorar="bottomright")
+        desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter",
+                     ancorar="bottomright")
 
         if not pode_descartar:
             desenhar_texto(tela, "Arraste as cartas para organizar a mao - clique numa carta para descartar",

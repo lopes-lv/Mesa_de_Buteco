@@ -34,7 +34,7 @@ def mesa_domino(*maos):
     jogadores = [DominoPlayer(i, f"J{i}") for i in range(len(maos))]
     mesa = DominoTable(jogadores)
     mesa.iniciar_nova_mao()
-    for jogador, texto in zip(jogadores, maos):
+    for jogador, texto in zip(jogadores, maos, strict=True):
         jogador.mao = pecas(texto)
     mesa._ordem = list(jogadores)
     mesa.indice_da_vez = 0

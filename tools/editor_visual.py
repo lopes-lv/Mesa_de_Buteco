@@ -21,6 +21,7 @@ core/layout.py e no arquivo de ajustes.
 import contextlib
 import os
 import sys
+from typing import Any
 
 PASTA_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PASTA_PROJETO not in sys.path:
@@ -178,9 +179,9 @@ class EditorVisual:
         self.cena = {modo: 0 for modo in editor_mesa.CENAS}
         self.indice_resolucao = 0
         self._telas_simuladas = {}   # (modo, jogadores, cena, resolução) -> tela do jogo congelada (ou None)
-        self._render_mesa = (None, None)  # (chave do estado, (superfície, elementos, alertas))
+        self._render_mesa: Any = (None, None)  # (chave do estado, (superfície, elementos, alertas))
 
-        self.grupo = None
+        self.grupo: Any = None
         self.selecionar_grupo("holdem")
 
     # ---------------------------------------------------------------- Estado
@@ -533,7 +534,7 @@ class EditorVisual:
         if not self.area_lista.collidepoint(pos):
             return
         for indice, linha in enumerate(self.linhas):
-            alvos = list(enumerate(linha.campos))
+            alvos: list = list(enumerate(linha.campos))
             if linha.eh_cor:  # na cor, a roda sobre a amostra ou o hex clareia/escurece
                 alvos = [(0, linha.campo_hex), (0, linha)]
             for i_campo, alvo in alvos:
@@ -618,14 +619,15 @@ class EditorVisual:
             for botao in linha.menos + linha.mais:
                 botao.atualizar(dt)
         pendentes = len(self.nao_salvas())
-        pygame.display.set_caption("Editor de Layout - PixelPoker" + (f"  ({pendentes} não salvas)" if pendentes else ""))
+        sufixo = f"  ({pendentes} não salvas)" if pendentes else ""
+        pygame.display.set_caption("Editor de Layout - PixelPoker" + sufixo)
 
     def executar(self):
         while self.rodando:
             dt = self.clock.tick(FPS) / 1000.0
             for evento in pygame.event.get():
                 if evento.type == pygame.VIDEORESIZE:
-                    self.tela = pygame.display.get_surface()
+                    self.tela = pygame.display.get_surface() or self.tela
                 else:
                     self.tratar_evento(evento)
             self.atualizar(dt)
@@ -707,7 +709,8 @@ class EditorVisual:
             trilho = pygame.Rect(self.area_lista.right - 4, self.area_lista.y, 4, self.area_lista.height)
             pygame.draw.rect(tela, SOMBRA, trilho)
             altura_alca = max(30, trilho.height * self.area_lista.height // conteudo)
-            y_alca = trilho.y + (trilho.height - altura_alca) * self.rolagem // max(1, conteudo - self.area_lista.height)
+            y_alca = (trilho.y + (trilho.height - altura_alca) * self.rolagem
+                      // max(1, conteudo - self.area_lista.height))
             pygame.draw.rect(tela, TEXT_MUTED, (trilho.x, y_alca, 4, altura_alca))
 
     def _desenhar_linha(self, tela, linha, selecionada):
@@ -786,7 +789,8 @@ class EditorVisual:
         passo = meta.get("passo", 1)
         if linha.eh_cor:
             detalhes = (f"{linha.chave}  ·  padrão {cor_para_hex(layout.padrao(linha.chave))}  ·  R, G e B de 0 a "
-                        f"255  ·  ←→/roda clareiam e escurecem de {passo} em {passo} (Shift: {passo * MULTIPLICADOR_SHIFT})")
+                        f"255  ·  ←→/roda clareiam e escurecem de {passo} em {passo} "
+                        f"(Shift: {passo * MULTIPLICADOR_SHIFT})")
         else:
             ordem = ""
             if isinstance(meta["valor"], list) and "comprimento" not in meta.get("rotulo", ""):
@@ -925,7 +929,8 @@ class EditorVisual:
         tela.blit(imagem, rect)
         pygame.draw.rect(tela, INK, rect, width=2)
         nome_cena = editor_mesa.CENAS[modo][self.cena[modo]][0]
-        escala_txt = "tamanho real" if escala >= 1 else f"{int(escala * 100)}% (aumente a janela do editor para ver maior)"
+        escala_txt = ("tamanho real" if escala >= 1
+                      else f"{int(escala * 100)}% (aumente a janela do editor para ver maior)")
         texto = (f"{editor_mesa.NOMES_MODO[modo]} · {nome_cena} · {self.jogadores[modo]} jogadores · "
                  f"{res[0]}x{res[1]} · {escala_txt}  —  clique, Esc ou F para voltar")
         desenhar_texto(tela, caber_texto(texto, largura - 32, 13), largura // 2, altura - 20, tamanho=13,

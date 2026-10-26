@@ -56,7 +56,7 @@ def _candidatos_trinca(cartas_mesmo_valor, coringas_disp):
     diferentes), completando com coringas quando necessario. Cada naipe
     contribui no maximo 1 carta representante (duplicatas do segundo
     baralho ficam disponiveis para outros grupos)."""
-    por_naipe = {}
+    por_naipe: dict = {}
     for c in cartas_mesmo_valor:
         por_naipe.setdefault(c.naipe, c)
     naipes = list(por_naipe.keys())
@@ -75,7 +75,7 @@ def _candidatos_sequencia(cartas_mesmo_naipe, coringas_disp):
     """Candidatos de sequencia (3+ cartas seguidas do mesmo naipe). O As
     pode servir como 14 (acima do Rei) ou 1 (abaixo do 2), mas nunca liga
     Q-K-A-2 (as duas leituras sao geradas separadamente, sem mistura)."""
-    por_valor = {}
+    por_valor: dict = {}
     for c in cartas_mesmo_naipe:
         por_valor.setdefault(c.valor, c)
     candidatos = []

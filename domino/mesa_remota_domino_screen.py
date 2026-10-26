@@ -14,18 +14,19 @@ localmente com a mesma função pura de `domino_logic.py`
 """
 import math
 import queue
+from typing import Any
 import random
 
 import pygame
+from core.ui_theme import tamanho_janela
 from core.ui_theme import (
-    BG, PANEL, INK, SOMBRA, FELT, FELT_DARK, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_avatar, desenhar_mesa,
     desenhar_badge, desenhar_glow_de_vez,
 )
 from .domino_theme import desenhar_peca, desenhar_peca_verso
 from .domino_logic import (
-    Peca, jogadas_possiveis_em, BONUS_PASSE, DIRECOES,
-    FASE_EMBARALHANDO, FASE_ESCOLHENDO, FASE_JOGANDO, DURACAO_EMBARALHAR,
+    Peca, jogadas_possiveis_em, FASE_EMBARALHANDO, FASE_ESCOLHENDO, FASE_JOGANDO, DURACAO_EMBARALHAR,
 )
 from .domino_screen import (
     CENTRO_MESA_Y, FOLGA_ASSENTO_CIMA, FOLGA_ASSENTO_BAIXO, MEIA_LARGURA_ASSENTO, posicionar_botao_passar,
@@ -83,7 +84,7 @@ class MesaRemotaDominoScreen:
         self.sala = sala_cliente
         self.meu_id = sala_cliente.meu_id
 
-        self.estado = None
+        self.estado: Any = None
         self.minha_mao = []  # lista de [a, b]
         self.tempo_decorrido = 0.0
 
@@ -305,7 +306,7 @@ class MesaRemotaDominoScreen:
         espaco = layout.obter("domino.espaco_mao")
         n = len(pecas)
         total_largura = n * largura_peca + max(0, n - 1) * espaco
-        largura_tela, altura_tela = pygame.display.get_surface().get_size()
+        largura_tela, altura_tela = tamanho_janela()
         x0 = largura_tela // 2 - total_largura // 2
         y0 = altura_tela - altura_peca - 40
         pares = []
@@ -338,7 +339,7 @@ class MesaRemotaDominoScreen:
 
     # ---------------------------------------------------------------- Desenho
     def _mesa_rect(self):
-        largura, altura = pygame.display.get_surface().get_size()
+        largura, altura = tamanho_janela()
         mesa_rect = pygame.Rect(0, 0, int(largura * 0.72), int(altura * 0.5))
         mesa_rect.center = (largura // 2, int(altura * CENTRO_MESA_Y))
         return mesa_rect

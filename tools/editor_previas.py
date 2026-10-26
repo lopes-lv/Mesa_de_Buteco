@@ -47,7 +47,8 @@ def _dica_borda_carta(largura):
 
 
 def _dica_largura(total, o_que):
-    return f"{o_que}: {total}px de largura ({total * 100 // LARGURA_JANELA_PADRAO}% da janela padrão de {LARGURA_JANELA_PADRAO}px)"
+    percentual = total * 100 // LARGURA_JANELA_PADRAO
+    return f"{o_que}: {total}px de largura ({percentual}% da janela padrão de {LARGURA_JANELA_PADRAO}px)"
 
 
 def _unir(rects, folga=SOMBRA_CARTA):
@@ -135,7 +136,7 @@ def previa_botoes_acao(tela, cx, cy, opcoes):
     botoes[1].midleft = (botoes[0].right + espaco, cy)
     botoes[2].midleft = (botoes[1].right + espaco, cy)
     for rect, texto, cor, cor_texto, tecla in zip(
-            botoes, ["Fold", "Call 20", "Raise"], [CORAL, BLUE, MINT], [INK, INK, SOMBRA], "FCR"):
+            botoes, ["Fold", "Call 20", "Raise"], [CORAL, BLUE, MINT], [INK, INK, SOMBRA], "FCR", strict=True):
         desenhar_botao(tela, rect, texto, cor=cor, cor_texto=cor_texto)
         desenhar_kbd(tela, rect.right - 12, rect.bottom - 12, tecla, ancorar="bottomright")
     return _unir(botoes), _dica_largura(total, "Fileira de botões")
@@ -208,7 +209,8 @@ def previa_glow_oponente(tela, cx, cy, opcoes):
     desenhar_texto(tela, "1500", painel.x + 64, painel.y + 32, tamanho=12, cor=TEXT_MUTED, familia="mono")
     anel = pygame.Rect(0, 0, 2 * (largura + 40), altura + 80)
     anel.center = (cx, cy)
-    return _unir([anel, painel], folga=4), "O anel pulsa; seu tamanho acompanha esta \"carta\" (o painel tem 178px fixos)"
+    return (_unir([anel, painel], folga=4),
+            "O anel pulsa; seu tamanho acompanha esta \"carta\" (o painel tem 178px fixos)")
 
 
 def previa_botoes_compra(tela, cx, cy, opcoes):
@@ -271,7 +273,7 @@ def previa_linha_domino(tela, cx, cy, opcoes):
     total = sum(w for w, _ in tamanhos) + espaco * (len(pecas) - 1)
     x = cx - total // 2
     rects = []
-    for (a, b, carroca), (w, h) in zip(pecas, tamanhos):
+    for (a, b, carroca), (w, h) in zip(pecas, tamanhos, strict=True):
         desenhar_peca(tela, x, cy - h // 2, w, h, a, b, vertical=carroca)
         rects.append(pygame.Rect(x, cy - h // 2, w, h))
         x += w + espaco

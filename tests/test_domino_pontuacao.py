@@ -3,7 +3,7 @@ import copy
 import random
 
 from domino.domino_logic import (BONUS_CARROCA_FECHOU, BONUS_PASSE, BONUS_TRANCAR_PARCIAL,
-                                 PONTUACAO_VITORIA, DominoPlayer, DominoTable, Peca)
+                                 PONTUACAO_VITORIA, DominoPlayer, DominoTable)
 from tests.helpers import jogar, mesa_domino
 
 

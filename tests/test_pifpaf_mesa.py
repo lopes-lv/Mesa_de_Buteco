@@ -174,7 +174,7 @@ def test_pm_12_monte_e_descarte_esgotados_nunca_travam_o_turno():
 
 def test_pm_13_duzentos_turnos_sem_bater_empatam_a_mao():
     mesa, jogadores = nova_mesa()
-    for turno in range(LIMITE_TURNOS_SEM_BATIDA):
+    for _turno in range(LIMITE_TURNOS_SEM_BATIDA):
         assert mesa.resultado_mao is None
         jogador = mesa.jogador_da_vez()
         mesa.comprar_do_monte(jogador)

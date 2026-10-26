@@ -8,6 +8,7 @@ LobbyScreen, MesaRemotaScreen) so leem o atributo `status`/`jogadores_lobby`
 ou drenam `mensagens_entrantes` a cada frame - nunca bloqueiam.
 """
 import queue
+from typing import Any
 import socket
 import threading
 
@@ -20,7 +21,7 @@ TIMEOUT_CONEXAO = 5.0
 class ClienteSala:
     def __init__(self, nome):
         self.nome = nome
-        self.mensagens_entrantes = queue.Queue()
+        self.mensagens_entrantes: queue.Queue = queue.Queue()
         self.jogadores_lobby = []
         self.meu_id = None
 
@@ -29,8 +30,8 @@ class ClienteSala:
         self.status = "conectando"
         self.erro = None
 
-        self._sock = None
-        self._fila_saida = queue.Queue()
+        self._sock: Any = None
+        self._fila_saida: queue.Queue = queue.Queue()
         self._parar = threading.Event()
 
     def conectar_async(self, ip, porta):

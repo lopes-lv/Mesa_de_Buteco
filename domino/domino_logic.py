@@ -382,7 +382,8 @@ class DominoTable:
                 self.extremidades["cima"] = peca.a
                 self.extremidades["baixo"] = peca.a
         else:
-            if direcao not in DIRECOES or self.extremidades[direcao] is None or not peca.combina(self.extremidades[direcao]):
+            if (direcao not in DIRECOES or self.extremidades[direcao] is None
+                    or not peca.combina(self.extremidades[direcao])):
                 return False
             if direcao in ("cima", "baixo") and not self.bucho_liberado():
                 return False

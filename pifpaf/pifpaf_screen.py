@@ -15,9 +15,12 @@ import queue
 from collections import deque
 
 import pygame
+from typing import Any
+
+from core.ui_theme import tamanho_janela
 from core.deck import Card
 from core.ui_theme import (
-    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE, LOCKED,
+    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL, BLUE, MINT, PURPLE,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_carta,
     desenhar_mesa, desenhar_avatar, desenhar_badge, desenhar_kbd,
     desenhar_glow_de_vez, tamanho_badge,
@@ -129,7 +132,7 @@ class PifPafTableScreen:
         self.sala_rede = sala_rede  # AnfitriaoSala, só quando é uma mesa multiplayer (host)
 
         self.carta_selecionada = None
-        self.arraste = None  # {"indice", "inicio", "pos", "moveu"} enquanto arrasta uma carta da mao
+        self.arraste: Any = None  # {"indice", "inicio", "pos", "moveu"} enquanto arrasta uma carta da mao
         self.timer_bot = 0.0
         self.tempo_decorrido = 0.0
 
@@ -147,7 +150,7 @@ class PifPafTableScreen:
         self.monte_rect = pygame.Rect(0, 0, *layout.obter("pifpaf.carta_monte"))
         self.descarte_rect = pygame.Rect(0, 0, *layout.obter("pifpaf.carta_monte"))
 
-        self.historico = deque(maxlen=1)
+        self.historico: deque = deque(maxlen=1)
         self.chat = ChatWidget(self._enviar_chat_host) if sala_rede is not None else None
         self._iniciar_mao()
 
@@ -220,7 +223,8 @@ class PifPafTableScreen:
             "mao_numero": self.mesa.mao_numero,
             "usar_joker": self.mesa.usar_joker,
             "monte_restante": len(self.mesa.monte),
-            "descarte_topo": [self.mesa.descarte[-1].valor, self.mesa.descarte[-1].naipe] if self.mesa.descarte else None,
+            "descarte_topo": ([self.mesa.descarte[-1].valor, self.mesa.descarte[-1].naipe]
+                              if self.mesa.descarte else None),
             "comprou_nesta_vez": self.mesa.comprou_nesta_vez,
             "jogador_da_vez_id": jogador_da_vez.id if jogador_da_vez else None,
             "jogadores": jogadores,
@@ -332,7 +336,7 @@ class PifPafTableScreen:
         """Trata clique/arrasto sobre as cartas da mao do jogador humano.
         Retorna True se o evento foi consumido (era sobre uma carta)."""
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-            for i, (rect, carta) in enumerate(self._rects_mao_humano(humano)):
+            for i, (rect, _carta) in enumerate(self._rects_mao_humano(humano)):
                 if rect.collidepoint(evento.pos):
                     self.arraste = {"indice": i, "inicio": evento.pos, "pos": evento.pos, "moveu": False}
                     return True
@@ -596,7 +600,8 @@ class PifPafTableScreen:
             painel.centery = y
 
             if eh_vez_dele:
-                desenhar_glow_de_vez(tela, x, y, *layout.obter("pifpaf.carta_oponente"), self.tempo_decorrido)
+                largura_op, altura_op = layout.obter("pifpaf.carta_oponente")
+                desenhar_glow_de_vez(tela, x, y, largura_op, altura_op, self.tempo_decorrido)
 
             desenhar_painel(tela, painel, cor=PANEL, radius=0, deslocamento_sombra=(3, 3))
 
@@ -631,7 +636,7 @@ class PifPafTableScreen:
         espaco = layout.obter("pifpaf.espaco_mao")
         n = len(humano.mao)
         total_largura = n * largura_carta + (n - 1) * espaco
-        largura_tela, altura_tela = pygame.display.get_surface().get_size()
+        largura_tela, altura_tela = tamanho_janela()
         x0 = largura_tela // 2 - total_largura // 2
         y0 = topo_da_mao(largura_tela, altura_tela, altura_carta)
         pares = []
@@ -704,7 +709,8 @@ class PifPafTableScreen:
 
             desenhar_botao(tela, self.botao_descarte, "Comprar Descarte",
                             hover=self.botao_descarte.collidepoint(mouse_pos), tamanho_fonte=16, cor=MINT)
-            desenhar_kbd(tela, self.botao_descarte.right - 14, self.botao_descarte.bottom - 14, "D", ancorar="bottomright")
+            desenhar_kbd(tela, self.botao_descarte.right - 14, self.botao_descarte.bottom - 14, "D",
+                         ancorar="bottomright")
             return
 
         pode_bater = self.mesa.pode_bater(humano)
@@ -729,7 +735,8 @@ class PifPafTableScreen:
             desenhar_botao(tela, self.botao_descartar, "Descartar", ativo=pode_descartar,
                             hover=pode_descartar and self.botao_descartar.collidepoint(mouse_pos),
                             tamanho_fonte=18, cor=CORAL, cor_texto=INK)
-        desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter", ancorar="bottomright")
+        desenhar_kbd(tela, self.botao_descartar.right - 12, self.botao_descartar.bottom - 12, "Enter",
+                     ancorar="bottomright")
 
         if not pode_descartar:
             desenhar_texto(tela, "Arraste as cartas para organizar a mao - clique numa carta para descartar",

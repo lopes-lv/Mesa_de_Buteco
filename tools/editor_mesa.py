@@ -22,6 +22,7 @@ devolver a superfície da prévia (algumas telas medem a janela por ele) e
 """
 import contextlib
 import random
+from typing import Any
 
 import pygame
 
@@ -55,7 +56,7 @@ class AppFalso:
         self.settings.selecao_automatica_pecas = True
         self.jogo_finalizado = False
         self.nome_vencedor = None
-        self.tela_atual = None
+        self.tela_atual: Any = None
 
     def finalizar_jogo(self, nome_vencedor):
         self.jogo_finalizado = True
@@ -70,8 +71,8 @@ def _ambiente_de_desenho(superficie):
     """Faz as telas enxergarem `superficie` como a janela e o mouse longe."""
     original_superficie = pygame.display.get_surface
     original_mouse = pygame.mouse.get_pos
-    pygame.display.get_surface = lambda: superficie
-    pygame.mouse.get_pos = lambda: (-10000, -10000)
+    pygame.display.get_surface = lambda: superficie  # type: ignore[assignment,misc]
+    pygame.mouse.get_pos = lambda: (-10000, -10000)  # type: ignore[assignment,misc]
     try:
         yield
     finally:
@@ -95,7 +96,7 @@ def _holdem_preflop_com_aposta(tela):
     rodada = tela.table.rodada_atual
     jogador = rodada.jogador_da_vez() if rodada is not None else None
     return (rodada is not None and not tela.table.comunitarias and _vez_do_humano(tela, jogador)
-            and jogador.aposta_rodada > 0)
+            and jogador is not None and jogador.aposta_rodada > 0)
 
 
 def _abrir_raise(tela):
@@ -131,7 +132,7 @@ def _domino_passar(tela):
 
 
 # modo -> [(nome da cena, condição pra parar, ajuste depois de parar)]
-CENAS = {
+CENAS: dict[str, list[tuple[str, Any, Any]]] = {
     "holdem": [("Sua vez no flop", _holdem_flop, None),
                ("Raise aberto", _holdem_flop, _abrir_raise),
                ("Sua vez no pré-flop, com aposta", _holdem_preflop_com_aposta, None)],
@@ -143,7 +144,7 @@ CENAS = {
 
 
 def _nova_partida(modo, n_jogadores):
-    app = AppFalso()
+    app: Any = AppFalso()
     n_bots = n_jogadores - 1
     if modo == "holdem":
         jogo.App.iniciar_partida(app, n_bots)
@@ -250,7 +251,7 @@ def _registrando(modulo, elementos):
 def desenhar_mesa(tela_jogo, modo, superficie):
     """Desenha a tela do jogo em `superficie` (com as scanlines, como no
     jogo) e devolve a lista de elementos desenhados."""
-    elementos = []
+    elementos: list = []
     with _ambiente_de_desenho(superficie), _registrando(MODULOS_TELA[modo], elementos):
         tela_jogo.desenhar(superficie)
     ui_theme.aplicar_scanlines(superficie)
@@ -290,7 +291,8 @@ def calcular_alertas(elementos, tamanho_tela):
     """Alertas da cena, erros primeiro, sem repetir mensagem igual.
     `elementos` está na ordem de desenho - o que vem depois fica por cima."""
     area = pygame.Rect((0, 0), tamanho_tela)
-    alertas, por_mensagem = [], {}
+    alertas: list = []
+    por_mensagem: dict = {}
 
     def alertar(nivel, mensagem, *rects):
         # mesma mensagem de novo (ex.: dois pares carta/painel do mesmo tamanho):
@@ -313,7 +315,7 @@ def calcular_alertas(elementos, tamanho_tela):
     # histórico, cobrindo cartas é problema e segue as regras normais.
     primeiro_botao = next((j for j, el in enumerate(principais) if el.tipo == "botao"), len(principais))
     paineis = [(j, el) for j, el in enumerate(principais) if el.tipo == "painel" and j > primeiro_botao]
-    cobertos = {}  # painel desenhado por cima -> elementos que ele cobre
+    cobertos: dict = {}  # painel desenhado por cima -> elementos que ele cobre
     for i, a in enumerate(principais):
         for j in range(i + 1, len(principais)):
             b = principais[j]

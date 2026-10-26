@@ -154,7 +154,8 @@ def test_et_06_a_sala_de_espera_do_anfitriao_desenha(jogo, janela):
 def test_et_06_a_sala_de_espera_do_cliente_desenha(janela):
     from menus.multiplayer_screens import LobbyScreen
     cliente = ClienteFalso(meu_id=1)
-    cliente.jogadores_lobby = [{"id": 0, "nome": "Host", "anfitriao": True}, {"id": 1, "nome": "Ana", "anfitriao": False}]
+    cliente.jogadores_lobby = [{"id": 0, "nome": "Host", "anfitriao": True},
+                               {"id": 1, "nome": "Ana", "anfitriao": False}]
     tela = LobbyScreen(editor_mesa.AppFalso(), sala_cliente=cliente)
     tela.atualizar(1 / 60)
     tela.desenhar(superficie(janela))

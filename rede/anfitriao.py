@@ -9,6 +9,7 @@ esperando um cliente lento). O loop do jogo (TableScreen) so faz
 `queue.get_nowait()` a cada frame - nunca bloqueia.
 """
 import queue
+from typing import Any
 import socket
 import threading
 import time
@@ -38,7 +39,7 @@ class _ClienteConectado:
         self.endereco = endereco
         self.id = None
         self.nome = None
-        self.fila_saida = queue.Queue()
+        self.fila_saida: queue.Queue = queue.Queue()
         self.ativo = True
 
 
@@ -48,7 +49,7 @@ class AnfitriaoSala:
         self.max_jogadores = max_jogadores
         self.codigo = gerar_codigo()
 
-        self.mensagens_entrantes = queue.Queue()  # itens: (jogador_id, msg_dict)
+        self.mensagens_entrantes: queue.Queue = queue.Queue()  # itens: (jogador_id, msg_dict)
         self.jogadores_conectados = {}  # id -> nome (so clientes remotos, sem contar o host)
         self.desconectados = set()      # ids que cairam durante uma partida em andamento
         self.em_jogo = False
@@ -60,7 +61,7 @@ class AnfitriaoSala:
         self._parar = threading.Event()
 
         self._porta_tcp_desejada = porta_tcp
-        self._socket_escuta = None
+        self._socket_escuta: Any = None
         self.porta_tcp = None
         self.ip_local = obter_ip_local()
 

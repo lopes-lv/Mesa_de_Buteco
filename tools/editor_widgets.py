@@ -5,6 +5,8 @@ marcar. Desenhados com as primitivas de core/ui_theme.py, no mesmo estilo
 Pixel Art Retrô CRT do jogo, mas em versão compacta (borda fina, sem a sombra
 grande dos botões do jogo, que ficaria pesada em controles de 26px).
 """
+from typing import Any
+
 import pygame
 
 from core.ui_theme import (
@@ -62,7 +64,7 @@ class CampoNumero(CampoTexto):
     def __init__(self, rect, ao_confirmar, max_len=4):
         super().__init__(rect, max_len=max_len)
         self.ao_confirmar = ao_confirmar
-        self.valor = 0
+        self.valor: Any = 0
         self._substituir = False
 
     def _confirmar(self):

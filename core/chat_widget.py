@@ -12,7 +12,7 @@ from collections import deque
 
 import pygame
 from .ui_theme import (
-    BG, PANEL, INK, SOMBRA, TEXT_MUTED, YELLOW, CORAL,
+    BG, PANEL, INK, SOMBRA, YELLOW, CORAL,
     desenhar_texto, desenhar_painel,
 )
 from .ui_widgets import CampoTexto
@@ -27,7 +27,7 @@ class ChatWidget:
         self.enviar_callback = enviar_callback
         self.expandido = False
         self.tem_novas = False
-        self.mensagens = deque(maxlen=MAX_MENSAGENS)
+        self.mensagens: deque = deque(maxlen=MAX_MENSAGENS)
 
         self.aba_rect = pygame.Rect(0, 0, 46, 120)
         self.painel_rect = pygame.Rect(0, 0, LARGURA_PAINEL, 360)

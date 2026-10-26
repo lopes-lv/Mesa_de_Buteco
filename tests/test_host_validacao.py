@@ -121,7 +121,7 @@ def domino():
     sala = SalaFalsa()
     tela = DominoTableScreen(AppFalso(), DominoTable(jogadores), sala_rede=sala)
     mesa = tela.mesa
-    for jogador, texto in zip(mesa.jogadores, ["4-4 0-1", "4-1 2-3", "5-5 6-6"]):
+    for jogador, texto in zip(mesa.jogadores, ["4-4 0-1", "4-1 2-3", "5-5 6-6"], strict=True):
         jogador.mao = pecas(texto)
     mesa._ordem = list(mesa.jogadores)
     mesa.indice_da_vez = 0

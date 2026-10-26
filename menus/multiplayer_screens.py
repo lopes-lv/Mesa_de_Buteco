@@ -9,7 +9,7 @@ import threading
 
 import pygame
 from core.ui_theme import (
-    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, MINT, LOCKED, SOMBRA,
+    BG, PANEL, INK, TEXT_MUTED, YELLOW, CORAL, MINT, SOMBRA,
     desenhar_texto, desenhar_botao, desenhar_painel, desenhar_badge,
 )
 from rede.anfitriao import AnfitriaoSala

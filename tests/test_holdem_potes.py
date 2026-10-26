@@ -21,7 +21,7 @@ def mesa_no_showdown(maos, comunitarias, apostado, foldaram=(), ids=None):
     dealer no assento 0. As fichas iniciais são 1000 menos o apostado."""
     ids = ids or list(range(len(maos)))
     jogadores = []
-    for i, (mao, total) in enumerate(zip(maos, apostado)):
+    for i, (mao, total) in enumerate(zip(maos, apostado, strict=True)):
         j = Player(ids[i], f"J{i}", stack=1000 - total)
         j.mao = cartas(mao)
         j.total_apostado_mao = total
@@ -82,7 +82,7 @@ def test_hp_07_empate_divide_o_pote_e_o_resto_vai_para_quem_esta_perto_do_dealer
                                apostado=[50, 50, 1], foldaram=(2,))
     inicio = [x.stack for x in j]
     resultado = mesa.processar_showdown()
-    ganhos = [x.stack - s for x, s in zip(j, inicio)]
+    ganhos = [x.stack - s for x, s in zip(j, inicio, strict=True)]
     assert ganhos == [50, 51, 0]
     assert resultado[0]["pote"] == 101
     assert set(resultado[0]["vencedores"]) == {"J0", "J1"}
@@ -93,7 +93,7 @@ def test_hp_08_o_vencedor_do_principal_pode_perder_o_side_pot():
     mesa, j = mesa_no_showdown(["Kp Ko", "Ac Ao", "Qc Qo"], "Kc 7o 9p 2e 3c", apostado=[50, 100, 100])
     inicio = [x.stack for x in j]
     mesa.processar_showdown()
-    ganhos = [x.stack - s for x, s in zip(j, inicio)]
+    ganhos = [x.stack - s for x, s in zip(j, inicio, strict=True)]
     assert ganhos == [150, 100, 0]
 
 

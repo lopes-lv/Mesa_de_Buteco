@@ -29,7 +29,7 @@ COR_FICHA_BASE = [
     (230, 200, 60),   # dourada
 ]
 
-_fonte_cache = {}
+_fonte_cache: dict = {}
 
 
 def obter_fonte(tamanho, negrito=False):
@@ -64,29 +64,29 @@ def desenhar_texto(tela, texto, x, y, tamanho=18, cor=COR_TEXTO, negrito=False, 
 class SpriteLoader:
     def __init__(self, assets_path='assets/assets.png'):
         self.sheet = pygame.image.load(assets_path).convert_alpha()
-        
+
         self.naipes = {
             'espadas': pygame.Rect(19, 23, 20, 23),
             'paus': pygame.Rect(48, 21, 20, 21),
             'copas': pygame.Rect(28, 57, 20, 19),
             'ouros': pygame.Rect(54, 54, 18, 29)
         }
-        
+
         self.faces_vermelhas = {
             'J': pygame.Rect(92, 20, 44, 36),
             'Q': pygame.Rect(146, 7, 37, 64),
             'K': pygame.Rect(194, 10, 41, 54)
         }
-        
+
         self.faces_pretas = {
             'J': pygame.Rect(242, 20, 44, 36),
             'Q': pygame.Rect(296, 7, 37, 64),
             'K': pygame.Rect(344, 10, 41, 54)
         }
-        
+
         self.base_verso = pygame.Rect(15, 92, 58, 74)
         self.base_frente = pygame.Rect(88, 91, 58, 74)
-        
+
         self.textos_vermelhos = {
             'A': pygame.Rect(173, 95, 14, 18),
             '2': pygame.Rect(195, 96, 11, 16),
@@ -102,7 +102,7 @@ class SpriteLoader:
             'Q': pygame.Rect(411, 103, 15, 13),
             'K': pygame.Rect(432, 104, 11, 14)
         }
-        
+
         self.textos_pretos = {
             'A': pygame.Rect(169, 131, 14, 18),
             '2': pygame.Rect(191, 132, 11, 16),
@@ -118,7 +118,7 @@ class SpriteLoader:
             'Q': pygame.Rect(407, 139, 15, 13),
             'K': pygame.Rect(428, 140, 11, 14)
         }
-        
+
         self._cache = {}
         self._cache_verso = None
         self._gerar_cache()
@@ -130,7 +130,7 @@ class SpriteLoader:
 
     def _gerar_cache(self):
         self._cache_verso = self.get_sprite(self.base_verso)
-        
+
         valores = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
         naipes_dict = {
             'copas': ('vermelho', self.naipes['copas']),
@@ -138,29 +138,33 @@ class SpriteLoader:
             'espadas': ('preto', self.naipes['espadas']),
             'paus': ('preto', self.naipes['paus'])
         }
-        
+
         for valor in valores:
             for nome_naipe, (cor, rect_naipe) in naipes_dict.items():
                 carta_surf = self.get_sprite(self.base_frente).copy()
-                
+
                 dict_textos = self.textos_vermelhos if cor == 'vermelho' else self.textos_pretos
                 surf_texto = self.get_sprite(dict_textos[valor])
-                
+
                 surf_naipe = self.get_sprite(rect_naipe)
                 surf_naipe_pequeno = pygame.transform.smoothscale(surf_naipe, (10, 10))
-                
+
                 # Canto superior esquerdo
                 carta_surf.blit(surf_texto, (3, 3))
-                carta_surf.blit(surf_naipe_pequeno, (3 + surf_texto.get_width()//2 - 5, 3 + surf_texto.get_height() + 1))
-                
+                carta_surf.blit(surf_naipe_pequeno,
+                                (3 + surf_texto.get_width()//2 - 5, 3 + surf_texto.get_height() + 1))
+
                 # Canto inferior direito (rotacionado 180)
                 surf_texto_rot = pygame.transform.rotate(surf_texto, 180)
                 surf_naipe_pequeno_rot = pygame.transform.rotate(surf_naipe_pequeno, 180)
-                
+
                 cw, ch = carta_surf.get_size()
-                carta_surf.blit(surf_texto_rot, (cw - 3 - surf_texto_rot.get_width(), ch - 3 - surf_texto_rot.get_height()))
-                carta_surf.blit(surf_naipe_pequeno_rot, (cw - 3 - surf_texto_rot.get_width()//2 - 5, ch - 3 - surf_texto_rot.get_height() - 1 - 10))
-                
+                carta_surf.blit(surf_texto_rot,
+                                (cw - 3 - surf_texto_rot.get_width(), ch - 3 - surf_texto_rot.get_height()))
+                carta_surf.blit(surf_naipe_pequeno_rot,
+                                (cw - 3 - surf_texto_rot.get_width()//2 - 5,
+                                 ch - 3 - surf_texto_rot.get_height() - 1 - 10))
+
                 # Centro
                 if valor in ['J', 'Q', 'K']:
                     faces = self.faces_vermelhas if cor == 'vermelho' else self.faces_pretas
@@ -172,13 +176,13 @@ class SpriteLoader:
                     nx = (cw - surf_naipe.get_width()) // 2
                     ny = (ch - surf_naipe.get_height()) // 2
                     carta_surf.blit(surf_naipe, (nx, ny))
-                
+
                 self._cache[f"{valor}_de_{nome_naipe}"] = carta_surf
 
     def get_carta(self, valor, naipe):
         key = f"{valor}_de_{naipe.lower()}"
         return self._cache.get(key, self._cache_verso)
-        
+
     def get_verso(self):
         return self._cache_verso
 
@@ -201,22 +205,22 @@ def inicializar_sprites(assets_path='assets/assets.png'):
 def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=False, destaque=False):
     """Desenha uma carta estilo pixel art. Usa sprites se disponíveis."""
     rect = pygame.Rect(x, y, largura, altura)
-    
+
     global _sprite_loader, _estilo_baralho
     if _estilo_baralho == "sprites" and _sprite_loader is not None:
         if virada_para_baixo or carta is None:
             imagem = _sprite_loader.get_verso()
         else:
             imagem = _sprite_loader.get_carta(carta.texto, carta.naipe)
-            
+
         if imagem.get_width() != largura or imagem.get_height() != altura:
             imagem = pygame.transform.scale(imagem, (largura, altura))
-            
+
         tela.blit(imagem, (x, y))
-        
+
         if destaque:
             pygame.draw.rect(tela, (230, 200, 60), rect, 4)
-            
+
         return rect
 
     # Procedural drawing
@@ -224,7 +228,7 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
     cor_borda = COR_CARTA_BORDA
     cor_verso = COR_CARTA_VERSO
     cor_verso_detalhe = COR_CARTA_VERSO_DETALHE
-    
+
     if _estilo_baralho == "dark":
         cor_fundo = (45, 45, 50)
         cor_borda = (15, 15, 18)
@@ -251,7 +255,7 @@ def desenhar_carta(tela, x, y, largura, altura, carta=None, virada_para_baixo=Fa
 
     tam_fonte = max(14, largura // 3)
     cor_naipe = carta.cor
-    
+
     # Adaptar cor dos naipes pretos para o dark mode
     if _estilo_baralho == "dark" and cor_naipe == (25, 25, 25):
         cor_naipe = (220, 220, 220)

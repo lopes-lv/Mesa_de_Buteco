@@ -2,8 +2,6 @@
 import random
 from .hand_evaluator import melhor_mao
 
-VALOR_TEXTO_ORDEM = list(range(2, 15))
-
 
 def _forca_pre_flop(mao):
     """Retorna um score de 0 a 100 para uma mão de 2 cartas (pré-flop)."""
@@ -33,7 +31,7 @@ def _forca_pos_flop(cartas_jogador, comunitarias):
     valores = {c.valor for c in cartas_jogador + comunitarias}
     if categoria_num == 1 and len(valores) >= 4:
         score += 8
-    naipes = {}
+    naipes: dict = {}
     for carta in cartas_jogador + comunitarias:
         naipes[carta.naipe] = naipes.get(carta.naipe, 0) + 1
     if categoria_num < 6 and max(naipes.values(), default=0) == 4:

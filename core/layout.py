@@ -19,13 +19,14 @@ partir do próximo frame/tela.
 import json
 import os
 import sys
+from typing import Any
 
 ARQUIVO_PADRAO = "layout_padrao.json"
 ARQUIVO_USUARIO = "layout.json"
 
-_itens = None     # {"grupo.chave": item do JSON padrão (dict com "valor", "min", ...)}
-_padroes = {}     # {"grupo.chave": valor padrão já normalizado}
-_valores = {}     # {"grupo.chave": valor em uso}
+_itens: Any = None  # {"grupo.chave": item do JSON padrão (dict com "valor", "min", ...)}
+_padroes: dict = {}  # {"grupo.chave": valor padrão já normalizado}
+_valores: dict = {}  # {"grupo.chave": valor em uso}
 
 
 def _pasta_projeto():
@@ -70,7 +71,7 @@ def _normalizar(valor, item):
             return None
         minimos = item.get("min") or [None] * len(padrao)
         maximos = item.get("max") or [None] * len(padrao)
-        return tuple(_limitar(int(v), lo, hi) for v, lo, hi in zip(valor, minimos, maximos))
+        return tuple(_limitar(int(v), lo, hi) for v, lo, hi in zip(valor, minimos, maximos, strict=True))
     if not _eh_numero(valor):
         return None
     return _limitar(int(valor), item.get("min"), item.get("max"))
@@ -176,7 +177,7 @@ def restaurar_padrao(chave=None):
 def ajustes_atuais():
     """Os valores em uso que diferem do padrão, no formato do layout.json."""
     _garantir_carregado()
-    ajustes = {}
+    ajustes: dict = {}
     for chave, valor in _valores.items():
         if valor != _padroes[chave]:
             grupo, nome = chave.split(".", 1)

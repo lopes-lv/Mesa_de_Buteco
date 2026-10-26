@@ -10,6 +10,8 @@ F5 recarrega, e o jogo recarrega sozinho quando o arquivo muda.
 """
 import os
 import sys
+from typing import Any
+
 import pygame
 
 from holdem.game_logic import Table, Player, TIPO_BOT, TIPO_HUMANO_LOCAL, TIPO_HUMANO_REMOTO
@@ -28,6 +30,7 @@ from domino.domino_screen import DominoTableScreen
 from core.settings import Settings
 from menus.multiplayer_screens import CriarSalaScreen, EntrarSalaScreen, LobbyScreen, MAX_JOGADORES_POR_JOGO
 from core import carteira, layout, ui_theme
+from core.tela import Tela
 
 LARGURA_INICIAL, ALTURA_INICIAL = 1280, 800
 FPS = 60
@@ -57,7 +60,7 @@ class App:
         self._tempo_vigia_layout = 0.0
         self._aviso_layout = None  # (texto, segundos restantes)
 
-        self.tela_atual = MenuScreen(self)
+        self.tela_atual: Tela = MenuScreen(self)
 
     # ---------------- Recarga do layout (config/layout.json) ----------------
     @staticmethod
@@ -172,6 +175,7 @@ class App:
         """
         stack_inicial = self.settings.fichas_iniciais
 
+        ClassePlayer: type[Player] | type[PifPafPlayer] | type[DominoPlayer]
         if jogo == "pifpaf":
             ClassePlayer, TIPO_LOCAL, TIPO_REMOTO, TIPO_BOT_ = (
                 PifPafPlayer, PIFPAF_TIPO_HUMANO_LOCAL, PIFPAF_TIPO_HUMANO_REMOTO, PIFPAF_TIPO_BOT)
@@ -183,7 +187,7 @@ class App:
                 Player, TIPO_HUMANO_LOCAL, TIPO_HUMANO_REMOTO, TIPO_BOT)
 
         kwargs_fichas = {} if jogo == "pifpaf" else {"stack": stack_inicial}  # Pif Paf não usa fichas
-        jogadores = []
+        jogadores: list[Any] = []
         for participante in nomes_participantes:
             tipo = TIPO_LOCAL if participante["id"] == 0 else TIPO_REMOTO
             jogadores.append(ClassePlayer(id_jogador=participante["id"], nome=participante["nome"],
@@ -208,11 +212,11 @@ class App:
         sala_rede.enviar_para_todos({"tipo": "iniciar_partida", "jogo": jogo})
 
         if jogo == "pifpaf":
-            mesa = PifPafTable(jogadores, usar_joker=self.settings.usar_joker_pifpaf)
-            self.tela_atual = PifPafTableScreen(self, mesa, sala_rede=sala_rede)
+            mesa_pifpaf = PifPafTable(jogadores, usar_joker=self.settings.usar_joker_pifpaf)
+            self.tela_atual = PifPafTableScreen(self, mesa_pifpaf, sala_rede=sala_rede)
         elif jogo == "domino":
-            mesa = DominoTable(jogadores)
-            self.tela_atual = DominoTableScreen(self, mesa, sala_rede=sala_rede)
+            mesa_domino = DominoTable(jogadores)
+            self.tela_atual = DominoTableScreen(self, mesa_domino, sala_rede=sala_rede)
         else:
             table = Table(jogadores)
             self.tela_atual = TableScreen(self, table, sala_rede=sala_rede)
@@ -280,7 +284,7 @@ class App:
                 # No pygame 2 a surface da janela já é redimensionada sozinha;
                 # chamar set_mode aqui (principalmente logo após alternar a tela
                 # cheia) derrubava o modo fullscreen e desincronizava o botão.
-                self.tela = pygame.display.get_surface()
+                self.tela = pygame.display.get_surface() or self.tela
             elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_F5:
                 self.recarregar_layout("F5")
             else:
